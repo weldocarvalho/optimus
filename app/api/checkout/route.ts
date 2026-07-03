@@ -82,14 +82,14 @@ export async function POST(request: Request) {
     };
 
     // Se o restaurante já tiver a conta bancária Stripe Connect configurada, aplica o split automático
-    if (restaurante.stripe_account_id) {
-      sessaoParams.payment_intent_data = {
-        application_fee_amount: 500, // Sua comissão fixa em centavos (Ex: R$ 5,00 por venda)
-        transfer_data: {
-          destination: restaurante.stripe_account_id,
-        },
-      };
-    }
+    // if (restaurante.stripe_account_id) {
+    //   sessaoParams.payment_intent_data = {
+    //     application_fee_amount: 500, // Sua comissão fixa em centavos (Ex: R$ 5,00 por venda)
+    //     transfer_data: {
+    //       destination: restaurante.stripe_account_id,
+    //     },
+    //   };
+    // }
 
     const session = await stripe.checkout.sessions.create(sessaoParams);
 
