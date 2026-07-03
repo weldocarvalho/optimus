@@ -18,7 +18,7 @@ export interface ItemCardapioComCMV extends ItemCardapio {
 }
 
 const RESTAURANTE_ID_TESTE = (async () => {
-  const { data } = await supabase.from('restaurantes').select('id').eq('slug', 'acelera-burger').single();
+  const { data } = await supabase.from('restaurantes').select('id').eq('slug', 'acelera-acai').single();
   return data?.id;
 });
 
