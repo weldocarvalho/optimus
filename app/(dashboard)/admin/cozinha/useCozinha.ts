@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
-import { supabaseClient } from '@/lib/supabaseClient';
+import { createClient } from '@/utils/supabase/client';
 
 export interface ItemPedidoDetalhado {
   id: string;
@@ -25,6 +25,8 @@ export interface PedidoCozinha {
 }
 
 export function useCozinha() {
+  const supabase = createClient(); // Cliente do navegador sem await para escutar canais Realtime
+  
   const [pedidos, setPedidos] = useState<PedidoCozinha[]>([]);
   const [loading, setLoading] = useState(true);
   const [sincronizando, setSincronizando] = useState(false);
@@ -48,12 +50,8 @@ export function useCozinha() {
     }
   };
 
-  
-
   const buscarItensDoPedido = async (pedidoId: string) => {
-    console.log('CHAMOU A FUNCAO buscarItensDoPedido', pedidoId);
-
-    const { data: itensBuscados } = await supabaseClient
+    const { data: itensBuscados } = await supabase
       .from('itens_pedido')
       .select('id, quantidade, itens_cardapio ( nome )')
       .eq('pedido_id', pedidoId);
@@ -64,15 +62,11 @@ export function useCozinha() {
       item_cardapio: { nome: i.itens_cardapio?.nome || 'Item Desconhecido' }
     }));
 
-    console.log('ITENS DO PEDIDO', pedidoId, itensFormatados);
-
     return itensFormatados;
   };
 
   const buscarPedidosAtivosDoBanco = async (idDoRestaurante: string): Promise<PedidoCozinha[]> => {
-    console.log('CHAMOU A FUNCAO buscarPedidosAtivosDoBanco', idDoRestaurante);
-    
-    const { data: listaPedidos } = await supabaseClient
+    const { data: listaPedidos } = await supabase
       .from('pedidos')
       .select(`
         id, status, valor_total, forma_pagamento, dados_cliente, created_at,
@@ -81,8 +75,6 @@ export function useCozinha() {
       .eq('restaurante_id', idDoRestaurante)
       .in('status', ['PENDENTE', 'PAGO', 'PREPARANDO', 'PRONTO'])
       .order('created_at', { ascending: true });
-
-      console.log('LISTA DE PEDIDOS NA FUNCAO buscarPedidosAtivosDoBanco:', listaPedidos);
 
     return (listaPedidos || []).map((p: any) => ({
       id: p.id,
@@ -99,31 +91,41 @@ export function useCozinha() {
     })) as PedidoCozinha[];
   };
 
+  // Carregamento de Inicialização Seguro baseado no usuário autenticado
   useEffect(() => {
     async function carregarDadosIniciais() {
-      const { data: rest } = await supabaseClient.from('restaurantes').select('id').limit(1).single();
-      console.log('RESTAURANTE ENCONTRADO:', rest);
-
-      if (rest) {
-        setRestauranteId(rest.id);
-
-        console.log('RESTAURANTE ID:', rest.id);
-
-        const pedidosIniciais = await buscarPedidosAtivosDoBanco(rest.id);
-
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
         
-        setPedidos(pedidosIniciais);
+        if (!user) return;
+
+        // Recupera o ID atômico amarrado ao gestor logado
+        const { data: perfil } = await supabase
+          .from('perfis_admin')
+          .select('restaurante_id')
+          .eq('id', user.id)
+          .single();
+
+        if (perfil?.restaurante_id) {
+          setRestauranteId(perfil.restaurante_id);
+          const pedidosIniciais = await buscarPedidosAtivosDoBanco(perfil.restaurante_id);
+          setPedidos(pedidosIniciais);
+        }
+      } catch (err) {
+        console.error('Erro ao inicializar fila de pedidos da cozinha:', err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
     carregarDadosIniciais();
   }, []);
 
+  // Escuta em Tempo Real (Realtime WebSockets) protegida por ID de inquilino
   useEffect(() => {
     if (!restauranteId) return;
 
-    const canalCozinha = supabaseClient
-      .channel('cozinha_realtime_master')
+    const canalCozinha = supabase
+      .channel(`cozinha_realtime_${restauranteId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, async (payload) => {
         const { eventType, new: novoRegistroRaw } = payload;
         const novoRegistro = novoRegistroRaw as any;
@@ -152,7 +154,7 @@ export function useCozinha() {
           } else {
             setPedidos((prev) => {
               const existe = prev.some((p) => p.id === novoRegistro.id);
-              if (!existe && (novoRegistro.status === 'PAGO' || novoRegistro.status === 'PREPARANDO')) {
+              if (!existe && ['PENDENTE', 'PAGO', 'PREPARANDO', 'PRONTO'].includes(novoRegistro.status)) {
                 adicionarPedidoNaFila(novoRegistro);
                 return prev;
               }
@@ -163,7 +165,9 @@ export function useCozinha() {
       })
       .subscribe();
 
-    return () => { supabaseClient.removeChannel(canalCozinha); };
+    return () => { 
+      supabase.removeChannel(canalCozinha); 
+    };
   }, [restauranteId]);
 
   const executarReconciliacaoPedidos = async () => {
@@ -186,7 +190,7 @@ export function useCozinha() {
 
   const alterarStatusPedido = (pedidoId: string, novoStatus: PedidoCozinha['status']) => {
     startTransition(async () => {
-      await supabaseClient.from('pedidos').update({ status: novoStatus }).eq('id', pedidoId);
+      await supabase.from('pedidos').update({ status: novoStatus }).eq('id', pedidoId);
     });
   };
 

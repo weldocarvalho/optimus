@@ -1,6 +1,6 @@
 // app/api/checkout/route.ts
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/server';
 import Stripe from 'stripe';
 
 // Inicialização do SDK herdando a versão padrão da conta Stripe de forma segura
@@ -27,25 +27,32 @@ export async function POST(request: Request) {
   try {
     const { slug, itens, dadosCliente }: RequestBody = await request.json();
 
-    // 1. Busca o restaurante e valida se ele tem conta Stripe configurada
-    const { data: restaurante } = await supabase
+    if (!slug || !itens || itens.length === 0) {
+      return NextResponse.json({ error: 'Dados da requisição inválidos.' }, { status: 400 });
+    }
+
+    // Inicializa o cliente do servidor assíncrono para Route Handlers
+    const supabase = await createClient();
+
+    // 1. Busca o restaurante e valida se ele existe no banco de dados
+    const { data: restaurante, error: errRestaurante } = await supabase
       .from('restaurantes')
       .select('id, stripe_account_id')
       .eq('slug', slug)
-      .single();
+      .maybeSingle(); // Retorna nulo de forma limpa se não encontrar
 
-    if (!restaurante) {
+    if (errRestaurante || !restaurante) {
       return NextResponse.json({ error: 'Restaurante não encontrado.' }, { status: 404 });
     }
 
-    // 2. Segurança de Preços: Busca os valores reais dos itens direto do banco de dados
+    // 2. Segurança de Preços: Busca os valores reais dos itens direto do banco de dados (Impede injeção de preço falso pelo console do navegador)
     const idsProdutos = itens.map((i) => i.item_cardapio_id);
-    const { data: produtosBanco } = await supabase
+    const { data: produtosBanco, error: errProdutos } = await supabase
       .from('itens_cardapio')
       .select('id, nome, preco_venda')
       .in('id', idsProdutos);
 
-    if (!produtosBanco || produtosBanco.length === 0) {
+    if (errProdutos || !produtosBanco || produtosBanco.length === 0) {
       return NextResponse.json({ error: 'Carrinho vazio ou inválido.' }, { status: 400 });
     }
 
@@ -60,15 +67,13 @@ export async function POST(request: Request) {
           product_data: {
             name: prodBanco.nome,
           },
-          unit_amount: Math.round(Number(prodBanco.preco_venda) * 100), // Valores em centavos
+          unit_amount: Math.round(Number(prodBanco.preco_venda) * 100), // Valores em centavos convertidos de forma precisa
         },
         quantity: itemCliente.quantidade,
       };
     });
 
     // 4. Configuração da Sessão de Checkout
-    // NOTA: Omitimos completamente o 'payment_method_types' e não usamos 'automatic_payment_methods'.
-    // Isso força o Stripe Checkout a carregar de forma transparente todas as formas de pagamento ativas no seu Dashboard (Pix, Cartão, etc.)
     const sessaoParams: Stripe.Checkout.SessionCreateParams = {
       line_items: lineItems,
       mode: 'payment',
@@ -81,10 +86,10 @@ export async function POST(request: Request) {
       },
     };
 
-    // Se o restaurante já tiver a conta bancária Stripe Connect configurada, aplica o split automático
+    // Estrutura Connect comentada pronta para o MVP caso decida ativar o split futuramente
     // if (restaurante.stripe_account_id) {
     //   sessaoParams.payment_intent_data = {
-    //     application_fee_amount: 500, // Sua comissão fixa em centavos (Ex: R$ 5,00 por venda)
+    //     application_fee_amount: 500,
     //     transfer_data: {
     //       destination: restaurante.stripe_account_id,
     //     },
@@ -96,7 +101,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ url: session.url });
 
   } catch (error: any) {
-    console.error('Erro na rota de checkout Stripe:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Erro crítico na rota de checkout Stripe:', error);
+    return NextResponse.json({ error: error.message || 'Falha no servidor de checkout.' }, { status: 500 });
   }
 }

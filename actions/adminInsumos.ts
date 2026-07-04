@@ -1,94 +1,152 @@
 // actions/adminInsumos.ts
 'use server';
 
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/server';
 import { Insumo } from '@/types/database';
 
-// Helper temporário para buscar o restaurante logado
-const RESTAURANTE_ID_TESTE = (async () => {
-  const { data } = await supabase.from('restaurantes').select('id').eq('slug', 'acelera-acai').single();
-  return data?.id;
-});
-
-export async function listarInsumosAdmin(): Promise<Insumo[]> {
-  const restauranteId = await RESTAURANTE_ID_TESTE();
+/**
+ * Função auxiliar interna para capturar o restaurante_id do gestor autenticado
+ * usando a tabela de amarração baseada na sessão atual do cookie.
+ */
+async function obterRestauranteIdLogado(): Promise<string> {
+  const supabase = await createClient();
   
-  const { data, error } = await supabase
-    .from('insumos')
-    .select('*')
-    .eq('restaurante_id', restauranteId)
-    .order('nome', { ascending: true });
-
-  if (error) {
-    console.error('Erro ao listar insumos:', error);
-    return [];
+  // Captura o usuário logado direto do JWT seguro do cookie
+  const { data: { user }, error: errUser } = await supabase.auth.getUser();
+  
+  if (errUser || !user) {
+    throw new Error('Usuário não autenticado no Centro de Comando.');
   }
 
-  return data || [];
+  // Busca a amarração do perfil administrativo
+  const { data: perfil, error: errPerfil } = await supabase
+    .from('perfis_admin')
+    .select('restaurante_id')
+    .eq('id', user.id)
+    .single();
+
+  if (errPerfil || !perfil) {
+    throw new Error('Perfil administrativo ou restaurante não localizado.');
+  }
+
+  return perfil.restaurante_id;
 }
 
-export async function criarInsumoAdmin(nome: string, unidade: 'g' | 'ml' | 'un', custo: number, estoqueAtual: number, estoqueMinimo: number) {
-  const restauranteId = await RESTAURANTE_ID_TESTE();
-  
+export async function listarInsumosAdmin(): Promise<Insumo[]> {
+  try {
+    const supabase = await createClient();
+    const restauranteId = await obterRestauranteIdLogado();
+    
+    const { data, error } = await supabase
+      .from('insumos')
+      .select('*')
+      .eq('restaurante_id', restauranteId)
+      .order('nome', { ascending: true });
+
+    if (error) {
+      console.error('Erro ao listar insumos:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Erro na action listarInsumosAdmin:', error);
+    return [];
+  }
+}
+
+export async function criarInsumoAdmin(
+  nome: string, 
+  unidade: 'g' | 'ml' | 'un', 
+  custo: number, 
+  estoqueAtual: number, 
+  estoqueMinimo: number
+) {
   if (!nome || custo <= 0) {
     return { success: false, error: 'Nome e custo unitário são obrigatórios.' };
   }
 
-  const { error } = await supabase
-    .from('insumos')
-    .insert([
-      {
-        restaurante_id: restauranteId,
-        nome,
-        unidade_medida: unidade,
-        custo_unitario: custo,
-        estoque_atual: estoqueAtual,
-        estoque_minimo: estoqueMinimo
-      }
-    ]);
+  try {
+    const supabase = await createClient();
+    const restauranteId = await obterRestauranteIdLogado();
+    
+    const { error } = await supabase
+      .from('insumos')
+      .insert([
+        {
+          restaurante_id: restauranteId,
+          nome,
+          unidade_medida: unidade,
+          custo_unitario: custo,
+          estoque_atual: estoqueAtual,
+          estoque_minimo: estoqueMinimo
+        }
+      ]);
 
-  if (error) {
-    console.error('Erro ao criar insumo:', error);
-    return { success: false, error };
+    if (error) {
+      console.error('Erro ao criar insumo:', error);
+      return { success: false, error };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
-
-  return { success: true };
 }
 
 export async function excluirInsumosEmLote(ids: string[]) {
   if (ids.length === 0) return { success: true };
 
-  const { error } = await supabase
-    .from('insumos')
-    .delete()
-    .in('id', ids);
+  try {
+    const supabase = await createClient();
+    
+    // O RLS ativado no banco garante que mesmo passando IDs arbitrários por fora,
+    // o Postgres impedirá a deleção se os registros não pertencerem ao restaurante_id correto do usuário.
+    const { error } = await supabase
+      .from('insumos')
+      .delete()
+      .in('id', ids);
 
-  if (error) {
-    console.error('Erro ao excluir insumos em lote:', error);
-    return { success: false, error };
+    if (error) {
+      console.error('Erro ao excluir insumos em lote:', error);
+      return { success: false, error };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
-
-  return { success: true };
 }
 
-export async function atualizarCustoInsumoAdmin(id: string, novoCusto: number, estoqueAtual: number, estoqueMinimo: number) {
+export async function atualizarCustoInsumoAdmin(
+  id: string, 
+  novoCusto: number, 
+  estoqueAtual: number, 
+  estoqueMinimo: number
+) {
   if (!id || novoCusto <= 0) {
     return { success: false, error: 'Dados inválidos para atualização.' };
   }
 
-  const { error } = await supabase
-    .from('insumos')
-    .update({
-      custo_unitario: novoCusto,
-      estoque_atual: estoqueAtual,
-      estoque_minimo: estoqueMinimo
-    })
-    .eq('id', id);
+  try {
+    const supabase = await createClient();
+    
+    const { error } = await supabase
+      .from('insumos')
+      .update({
+        custo_unitario: novoCusto,
+        estoque_atual: estoqueAtual,
+        estoque_minimo: estoqueMinimo
+      })
+      .eq('id', id);
 
-  if (error) {
-    console.error('Erro ao atualizar custo do insumo:', error);
-    return { success: false, error };
+    if (error) {
+      console.error('Erro ao atualizar custo do insumo:', error);
+      return { success: false, error };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
-
-  return { success: true };
 }

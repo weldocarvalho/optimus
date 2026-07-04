@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { PedidoCozinha } from '@/app/(dashboard)/admin/cozinha/page';
+import { PedidoCozinha } from '@/app/(dashboard)/admin/cozinha/useCozinha';
 
 interface CardPedidoCozinhaProps {
   pedido: PedidoCozinha;

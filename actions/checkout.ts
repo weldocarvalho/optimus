@@ -1,7 +1,7 @@
 // actions/checkout.ts
 'use server';
 
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/server';
 import { FormaPagamento } from '@/types/database';
 
 interface ItemPedidoInput {
@@ -29,72 +29,96 @@ export async function processarPedidoCheckout(
   itens: ItemPedidoInput[],
   valorTotal: number
 ) {
-  // 1. Descobre o restaurante através do slug da URL
-  const { data: restaurante } = await supabase
-    .from('restaurantes')
-    .select('id')
-    .eq('slug', slug)
-    .single();
+  try {
+    const supabase = await createClient();
 
-  if (!restaurante) return { success: false, error: 'Restaurante inválido.' };
+    if (!slug || itens.length === 0) {
+      return { success: false, error: 'Dados do checkout incompletos.' };
+    }
 
-  // 2. Cria o registro mestre do pedido (Geralmente PENDENTE até aprovação manual do restaurante)
-  const { data: novoPedido, error: errPedido } = await supabase
-    .from('pedidos')
-    .insert([{
-      restaurante_id: restaurante.id,
-      status: 'PENDENTE',
-      valor_total: valorTotal,
-      forma_pagamento: formaPagamento,
-      dados_cliente: dadosCliente
-    }])
-    .select()
-    .single();
+    // 1. Descobre o restaurante através do slug da URL
+    const { data: restaurante, error: errRestaurante } = await supabase
+      .from('restaurantes')
+      .select('id')
+      .eq('slug', slug)
+      .maybeSingle();
 
-  if (errPedido || !novoPedido) {
-    console.error('Erro ao criar pedido mestre:', errPedido);
-    return { success: false, error: 'Falha ao processar o pedido.' };
-  }
+    if (errRestaurante || !restaurante) {
+      return { success: false, error: 'Restaurante inválido ou indisponível.' };
+    }
 
-  // 3. Cadastra as linhas de itens do pedido
-  const linhasItens = itens.map(item => ({
-    pedido_id: novoPedido.id,
-    item_cardapio_id: item.item_cardapio_id,
-    quantidade: item.quantidade,
-    preco_unitario: item.preco_unitario
-  }));
+    // 2. Cria o registro mestre do pedido (Status PENDENTE)
+    const { data: novoPedido, error: errPedido } = await supabase
+      .from('pedidos')
+      .insert([{
+        restaurante_id: restaurante.id,
+        status: 'PENDENTE',
+        valor_total: valorTotal,
+        forma_pagamento: formaPagamento,
+        dados_cliente: dadosCliente
+      }])
+      .select()
+      .single();
 
-  const { error: errItens } = await supabase.from('itens_pedido').insert(linhasItens);
-  if (errItens) return { success: false, error: 'Erro ao registrar itens do pedido.' };
+    if (errPedido || !novoPedido) {
+      console.error('Erro ao criar pedido mestre:', errPedido);
+      return { success: false, error: 'Falha ao processar as informações do pedido.' };
+    }
 
-  // 4. MÁGICA DO ESTOQUE DEDUTIVO: Dá baixa nos insumos com base na Ficha Técnica
-  for (const item of itens) {
-    // Busca a composição (receita) do prato comprado com o nome correto da coluna
-    const { data: composicoes } = await supabase
+    // 3. Cadastra as linhas de itens do pedido
+    const linhasItens = itens.map(item => ({
+      pedido_id: novoPedido.id,
+      item_cardapio_id: item.item_cardapio_id,
+      quantidade: item.quantidade,
+      preco_unitario: item.preco_unitario
+    }));
+
+    const { error: errItens } = await supabase
+      .from('itens_pedido')
+      .insert(linhasItens);
+
+    if (errItens) {
+      console.error('Erro ao registrar linhas do pedido:', errItens);
+      return { success: false, error: 'Erro ao registrar itens do pedido.' };
+    }
+
+    // 4. MÁGICA DO ESTOQUE DEDUTIVO: Puxa todas as receitas necessárias em lote (Fim do N+1)
+    const itemIds = itens.map(i => i.item_cardapio_id);
+    const { data: composicoes, error: errCompo } = await supabase
       .from('composicao_produto')
-      .select('insumo_id, quantidade_necessaria')
-      .eq('item_cardapio_id', item.item_cardapio_id);
+      .select('item_cardapio_id, insumo_id, quantidade_necessaria')
+      .in('item_cardapio_id', itemIds);
 
-    if (composicoes) {
+    if (!errCompo && composicoes) {
+      // Mapeia os inputs de itens para busca rápida em O(1)
+      const quantidadePorItem = new Map(itens.map(i => [i.item_cardapio_id, i.quantidade]));
+
       for (const comp of composicoes) {
-        const quantidadeTotalDeduzir = Number(comp.quantidade_necessaria) * item.quantidade;
+        const qtdVendidaDoProduto = quantidadePorItem.get(comp.item_cardapio_id) || 0;
+        const quantidadeTotalDeduzir = Number(comp.quantidade_necessaria) * qtdVendidaDoProduto;
         
-        // Executa a subtração atômica direto na tabela de insumos do Supabase
-        await supabase.rpc('deduzir_estoque_insumo', {
-          p_insumo_id: comp.insumo_id,
-          p_quantidade: quantidadeTotalDeduzir
-        });
+        if (quantidadeTotalDeduzir > 0) {
+          // Executa a subtração atômica direta via Procedure RPC armazenada no banco
+          await supabase.rpc('deduzir_estoque_insumo', {
+            p_insumo_id: comp.insumo_id,
+            p_quantidade: quantidadeTotalDeduzir
+          });
+        }
       }
     }
+
+    // 5. ATUALIZAÇÃO DO FUNIL DE CRESCIMENTO (Destaque de Lucratividade)
+    const hoje = new Date().toISOString().split('T')[0];
+    
+    // Incremento atômico de compras concluídas chamando a função nativa RPC correspondente
+    await supabase.rpc('incrementar_compras_funil', {
+      p_restaurante_id: restaurante.id,
+      p_data: hoje
+    });
+
+    return { success: true, pedidoId: novoPedido.id };
+  } catch (error: any) {
+    console.error('Erro crítico durante fluxo de processarPedidoCheckout:', error);
+    return { success: false, error: error.message || 'Falha catastrófica no checkout.' };
   }
-
-  // 5. Atualiza o funil de crescimento para pedidos manuais
-  const hoje = new Date().toISOString().split('T')[0];
-  await supabase
-    .from('metricas_funil')
-    .update({ compras_concluidas: supabase.rpc('increment', { row_count: 1 }) as any })
-    .eq('restaurante_id', restaurante.id)
-    .eq('data', hoje);
-
-  return { success: true, pedidoId: novoPedido.id };
 }

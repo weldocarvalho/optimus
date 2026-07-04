@@ -1,6 +1,6 @@
 // app/api/webhooks/pagamentos/route.ts
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createWebhookAdminClient } from '@/utils/supabase/webhook';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     }
     event = stripe.webhooks.constructEvent(body, sig, endpointSecret);
   } catch (err: any) {
-    console.error(`❌ Falha na validação do Webhook: ${err.message}`);
+    console.error(`❌ Falha na validação do Webhook Stripe: ${err.message}`);
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const slug = session.metadata?.slug;
     const valorTotal = session.amount_total ? session.amount_total / 100 : 0;
 
-    // Recuperação segura e blindada contra falhas de estouro de string do JSON do cliente
+    // Recuperação segura do JSON de metadados do cliente
     let dadosCliente = null;
     try {
       if (session.metadata?.dadosCliente) {
@@ -60,34 +60,41 @@ export async function POST(request: Request) {
     }
 
     try {
-      // 1. Descobre o ID do restaurante pelo slug indexado
-      const { data: restaurante } = await supabase
+      // Inicializa o cliente com privilégios Service Role para ignorar RLS
+      const supabase = createWebhookAdminClient();
+
+      // 1. Descobre o ID do restaurante pelo slug indexado de forma resiliente
+      const { data: restaurante, error: errRestaurante } = await supabase
         .from('restaurantes')
         .select('id')
         .eq('slug', slug)
-        .single();
+        .maybeSingle();
 
-      if (!restaurante) throw new Error(`Restaurante não identificado para o slug: ${slug}`);
+      if (errRestaurante || !restaurante) {
+        throw new Error(`Restaurante não identificado para o slug: ${slug}`);
+      }
 
-      if (itens.length === 0) throw new Error('Nenhum item válido decodificado dos metadados.');
+      if (itens.length === 0) {
+        throw new Error('Nenhum item válido decodificado dos metadados.');
+      }
 
-      // 2. Segurança de Preços: Busca o preço de tabela do item para evitar adulterações
+      // 2. Segurança de Preços: Busca o preço vigente de tabela de todos os produtos do lote
       const idsProdutos = itens.map(i => i.item_cardapio_id);
-      const { data: produtosBanco } = await supabase
+      const { data: produtosBanco, error: errProdutos } = await supabase
         .from('itens_cardapio')
         .select('id, preco_venda')
         .in('id', idsProdutos);
 
-      if (!produtosBanco || produtosBanco.length === 0) {
+      if (errProdutos || !produtosBanco || produtosBanco.length === 0) {
         throw new Error('Falha ao recuperar preços vigentes dos produtos para conciliação.');
       }
 
-      // 3. Insere o Pedido definitivo no Supabase como PAGO
+      // 3. Insere o Pedido definitivo no Supabase com status PAGO (Envia direto para a cozinha)
       const { data: novoPedido, error: errPedido } = await supabase
         .from('pedidos')
         .insert([{
           restaurante_id: restaurante.id,
-          status: 'PAGO', // Já entra aprovado diretamente para a cozinha
+          status: 'PAGO',
           valor_total: valorTotal,
           forma_pagamento: 'CARTAO',
           dados_cliente: dadosCliente
@@ -95,10 +102,12 @@ export async function POST(request: Request) {
         .select()
         .single();
 
-      if (errPedido || !novoPedido) throw errPedido || new Error('Erro ao criar pedido mestre.');
+      if (errPedido || !novoPedido) {
+        throw errPedido || new Error('Erro ao criar pedido mestre no banco.');
+      }
 
       // 4. Cadastra as linhas de itens vinculadas ao pedido mestre
-      const linhasItens = itens.map((item) => {
+      const linesItemsInsert = itens.map((item) => {
         const prod = produtosBanco.find(p => p.id === item.item_cardapio_id);
         return {
           pedido_id: novoPedido.id,
@@ -108,20 +117,27 @@ export async function POST(request: Request) {
         };
       });
 
-      const { error: errItens } = await supabase.from('itens_pedido').insert(linhasItens);
+      const { error: errItens } = await supabase
+        .from('itens_pedido')
+        .insert(linesItemsInsert);
+
       if (errItens) throw errItens;
 
-      // 5. BAIXA OPERACIONAL ATÔMICA: Roda a RPC para cada insumo da receita
-      for (const item of itens) {
-        const { data: composicoes } = await supabase
-          .from('composicao_produto')
-          .select('insumo_id, quantidade_necessaria')
-          .eq('item_cardapio_id', item.item_cardapio_id);
+      // 5. BAIXA OPERACIONAL ATÔMICA: Traz todas as receitas em lote (Fim do N+1 em loops)
+      const { data: composicoes, error: errCompo } = await supabase
+        .from('composicao_produto')
+        .select('item_cardapio_id, insumo_id, quantidade_necessaria')
+        .in('item_cardapio_id', idsProdutos);
 
-        if (composicoes) {
-          for (const comp of composicoes) {
-            const quantidadeTotalDeduzir = Number(comp.quantidade_necessaria) * item.quantidade;
-            
+      if (!errCompo && composicoes) {
+        const quantidadePorItem = new Map(itens.map(i => [i.item_cardapio_id, i.quantidade]));
+
+        for (const comp of composicoes) {
+          const qtdVendidaDoProduto = quantidadePorItem.get(comp.item_cardapio_id) || 0;
+          const quantidadeTotalDeduzir = Number(comp.quantidade_necessaria) * qtdVendidaDoProduto;
+          
+          if (quantidadeTotalDeduzir > 0) {
+            // Executa a dedução atômica direta via Procedure RPC armazenada no Postgres
             await supabase.rpc('deduzir_estoque_insumo', {
               p_insumo_id: comp.insumo_id,
               p_quantidade: quantidadeTotalDeduzir
@@ -130,35 +146,21 @@ export async function POST(request: Request) {
         }
       }
 
-      // 6. MOTOR DE GROWTH (CORRIGIDO): Incrementa a métrica de vendas de forma purista no Postgres
-      // Buscamos o registro de métricas do dia para fazer o incremento nativo somando +1
+      // 6. MOTOR DE GROWTH SEGURO (FIM DA RACE CONDITION): Incremento atômico nativo via RPC
       const hoje = new Date().toISOString().split('T')[0];
-      
-      // Captura o valor atual das métricas do dia de hoje para o restaurante
-      const { data: metricaAtual } = await supabase
-        .from('metricas_funil')
-        .select('compras_concluidas')
-        .eq('restaurante_id', restaurante.id)
-        .eq('data', hoje)
-        .single();
+      await supabase.rpc('incrementar_compras_funil', {
+        p_restaurante_id: restaurante.id,
+        p_data: hoje
+      });
 
-      const totalConcluidoAtual = metricaAtual?.compras_concluidas ? Number(metricaAtual.compras_concluidas) : 0;
-
-      // Atualiza somando +1 de forma limpa e compatível com o Supabase Client
-      await supabase
-        .from('metricas_funil')
-        .update({ compras_concluidas: totalConcluidoAtual + 1 })
-        .eq('restaurante_id', restaurante.id)
-        .eq('data', hoje);
-
-      console.log(`✅ Pedido ${novoPedido.id} processado com sucesso via Webhook Stripe!`);
+      console.log(`✅ Pedido ${novoPedido.id} processado e conciliado com absoluto sucesso via Webhook Stripe!`);
 
     } catch (dbError: any) {
-      console.error('❌ Erro interno de processamento no banco do Webhook:', dbError);
+      console.error('❌ Erro de processamento interno no banco do Webhook:', dbError);
       return NextResponse.json({ error: dbError.message || 'Database processing failed' }, { status: 500 });
     }
   }
 
-  // Informa à Stripe que o aviso foi recebido e processado sem falhas de rede
+  // Responde com status 200 confirmando o recebimento idôneo à Stripe
   return NextResponse.json({ received: true });
 }
