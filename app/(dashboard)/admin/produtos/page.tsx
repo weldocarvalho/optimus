@@ -1,6 +1,7 @@
 // app/(dashboard)/admin/produtos/page.tsx
 import { listarProdutosComCMV } from '@/actions/admin';
 import { listarInsumosAdmin } from '@/actions/adminInsumos'; // Importa a busca de estoque existente
+import { BotaoLogout } from '@/app/logout/logout';
 import ListaProdutosAdmin from '@/components/ListaProdutosAdmin';
 
 export const revalidate = 0; 
@@ -26,7 +27,11 @@ export default async function PainelProdutosAdmin() {
               <h2 className="font-black text-lg tracking-tight text-[#1A1A1A]">Acelera Burger</h2>
               <span className="text-[11px] font-bold tracking-tight text-[#E16349] block mt-0.5">AceleraFood Tech</span>
             </div>
+
+            <BotaoLogout />
           </div>
+
+          
 
           <nav className="flex items-center gap-1 bg-[#F3F3F3] p-1.5 rounded-[16px] overflow-x-auto">
             <a href="/admin/produtos" className="flex items-center gap-1.5 px-4 py-2 rounded-[12px] text-xs font-bold bg-[#E16349] text-white shadow-sm transition-all shrink-0">
