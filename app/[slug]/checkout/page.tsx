@@ -5,27 +5,25 @@ import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCarrinho } from '@/components/ecommerce/ContextoCarrinho';
-import AbasCheckout from '@/components/ecommerce/AbasCheckout';
-import AbaCep from '@/components/ecommerce/AbaCep';
-import AbaGps from '@/components/ecommerce/AbaGps';
-import AbaRetirada from '@/components/ecommerce/AbaRetirada';
-import FormularioEndereco from '@/components/ecommerce/FormularioEndereco';
+import AbasEntrega from '@/components/ecommerce/checkout/AbasEntrega';
+import CampoCepEntrega from '@/components/ecommerce/checkout/CampoCepEntrega';
+import BotaoLocalizacaoGps from '@/components/ecommerce/checkout/BotaoLocalizacaoGps';
+import CartaoRetirada from '@/components/ecommerce/checkout/CartaoRetirada';
+import FormularioEnderecoEntrega from '@/components/ecommerce/checkout/FormularioEnderecoEntrega';
+import type { AbaEntregaCheckout, EtapaCheckout } from '@/components/ecommerce/checkout/tipos';
 
 export default function TelaDeCheckoutDedicada() {
   const params = useParams();
   const router = useRouter();
   const slug = (params?.slug as string) || '';
   
-  // Detecta o tipo de estabelecimento de forma abstrata caso precise tratar CMVs ou regras pós-venda
-  const ehAcai = slug.includes('acai') || slug.includes('acaiteria');
-
   const { itens, adicionarItem, removerItem, valorTotal, totalItens } = useCarrinho();
   
   // Controle de Etapas Sequenciais na Nova Tela
-  const [etapa, setEtapa] = useState<'SACOLA' | 'ENTREGA'>('SACOLA');
+  const [etapaCheckout, setEtapaCheckout] = useState<EtapaCheckout>('SACOLA');
   
   // Estados do Formulário de Entrega Monocromático
-  const [abaAtiva, setAbaAtiva] = useState<'CEP' | 'GPS' | 'RETIRADA'>('CEP');
+  const [abaEntregaAtiva, setAbaEntregaAtiva] = useState<AbaEntregaCheckout>('CEP');
   const [cep, setCep] = useState('');
   const [rua, setRua] = useState('');
   const [numero, setNumero] = useState('');
@@ -38,8 +36,8 @@ export default function TelaDeCheckoutDedicada() {
   };
 
   const handleVoltarClique = () => {
-    if (etapa === 'ENTREGA') {
-      setEtapa('SACOLA');
+    if (etapaCheckout === 'ENTREGA') {
+      setEtapaCheckout('SACOLA');
     } else {
       router.push(`/${slug}`); // Retorna nativamente para o cardápio correto
     }
@@ -47,9 +45,9 @@ export default function TelaDeCheckoutDedicada() {
 
   const handleAcaoPrincipal = (e: React.FormEvent) => {
     e.preventDefault();
-    if (etapa === 'SACOLA') {
+    if (etapaCheckout === 'SACOLA') {
       if (itens.length === 0) return;
-      setEtapa('ENTREGA');
+      setEtapaCheckout('ENTREGA');
     } else {
       // Disparador de envio para o Banco de Dados / APIs de Pagamento reais
       alert('Processando transação com criptografia de ponta...');
@@ -99,10 +97,10 @@ export default function TelaDeCheckoutDedicada() {
           </button>
           <div>
             <h1 className="text-base font-black tracking-tight text-zinc-900">
-              {etapa === 'SACOLA' ? 'Revisar Sacola' : 'Finalizar Pedido'}
+              {etapaCheckout === 'SACOLA' ? 'Revisar Sacola' : 'Finalizar Pedido'}
             </h1>
             <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-0.5">
-              {etapa === 'SACOLA' ? `Etapa 1 de 2 • ${totalItens} itens` : 'Etapa 2 de 2 • Gateway Seguro'}
+              {etapaCheckout === 'SACOLA' ? `Etapa 1 de 2 • ${totalItens} itens` : 'Etapa 2 de 2 • Gateway Seguro'}
             </p>
           </div>
         </header>
@@ -111,7 +109,7 @@ export default function TelaDeCheckoutDedicada() {
         <div className="p-6 space-y-6 flex-1 bg-white">
           
           {/* RENDERIZAÇÃO DA SACOLA EM NOVA TELA */}
-          {etapa === 'SACOLA' && (
+          {etapaCheckout === 'SACOLA' && (
             <div className="space-y-4">
               {itens.length === 0 ? (
                 <div className="text-center py-20 text-zinc-400 italic text-xs font-medium bg-zinc-50 rounded-2xl border border-dashed border-zinc-200 p-4">
@@ -159,7 +157,7 @@ export default function TelaDeCheckoutDedicada() {
               )}
             </div>
           )}
-          {etapa === 'ENTREGA' && (
+          {etapaCheckout === 'ENTREGA' && (
             <div className="space-y-4 animate-in fade-in duration-200">
               {/* Card de Resumo de Itens Selecionados */}
               <div className="bg-zinc-50 border border-zinc-200/60 rounded-xl p-4 flex justify-between items-center text-xs font-medium">
@@ -169,22 +167,25 @@ export default function TelaDeCheckoutDedicada() {
 
               {/* Seletor de Tipo de Entrega Monocromático */}
               <div className="bg-white border border-zinc-200/60 rounded-2xl overflow-hidden shadow-sm flex flex-col">
-                <AbasCheckout 
-                  abaAtiva={abaAtiva} 
-                  setAbaAtiva={setAbaAtiva} 
-                  corTextoDestaque="text-zinc-900" 
+                <AbasEntrega
+                  abaAtiva={abaEntregaAtiva}
+                  onChangeAba={setAbaEntregaAtiva}
+                  classeCorTextoAtiva="text-zinc-900"
                 />
                 
                 <div className="p-4 space-y-4">
-                  {abaAtiva === 'CEP' && <AbaCep cep={cep} onChangeCep={setCep} abaAtiva={abaAtiva} />}
-                  {abaAtiva === 'GPS' && <AbaGps onCapturar={handleCapturarGps} />}
-                  {abaAtiva === 'RETIRADA' && <AbaRetirada endereco="Av. Principal da Cidade, 1500 - Centro" />}
+                  {abaEntregaAtiva === 'CEP' && <CampoCepEntrega cep={cep} onChangeCep={setCep} abaAtiva={abaEntregaAtiva} />}
+                  {abaEntregaAtiva === 'GPS' && <BotaoLocalizacaoGps onCapturarLocalizacao={handleCapturarGps} />}
+                  {abaEntregaAtiva === 'RETIRADA' && <CartaoRetirada endereco="Av. Principal da Cidade, 1500 - Centro" />}
 
-                  {abaAtiva !== 'RETIRADA' && (
-                    <FormularioEndereco 
-                      rua={rua} setRua={setRua}
-                      numero={numero} setNumero={setNumero}
-                      bairro={bairro} setBairro={setBairro}
+                  {abaEntregaAtiva !== 'RETIRADA' && (
+                    <FormularioEnderecoEntrega
+                      rua={rua}
+                      onChangeRua={setRua}
+                      numero={numero}
+                      onChangeNumero={setNumero}
+                      bairro={bairro}
+                      onChangeBairro={setBairro}
                     />
                   )}
                 </div>
@@ -228,7 +229,7 @@ export default function TelaDeCheckoutDedicada() {
                 {formatarMoeda(valorTotal)}
               </span>
             </div>
-            {etapa === 'SACOLA' && itens.length > 0 && (
+            {etapaCheckout === 'SACOLA' && itens.length > 0 && (
               <span className="text-[10px] font-bold text-zinc-600 bg-zinc-100 px-2.5 py-1 rounded-md border border-zinc-200/40">
                 Itens revisados
               </span>
@@ -241,7 +242,7 @@ export default function TelaDeCheckoutDedicada() {
             disabled={itens.length === 0}
             className="w-full py-4 px-6 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all duration-200 active:scale-[0.99] shadow-sm disabled:opacity-30 disabled:pointer-events-none"
           >
-            {etapa === 'SACOLA' ? 'Avançar para Entrega' : 'Ir para o Pagamento'}
+            {etapaCheckout === 'SACOLA' ? 'Avançar para Entrega' : 'Ir para o Pagamento'}
           </button>
         </footer>
 
