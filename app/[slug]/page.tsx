@@ -12,9 +12,11 @@ interface PaginaCardapioProps {
 
 interface ComplementoProdutoPagina {
   id: string;
+  item_cardapio_id: string;
   nome: string;
   preco_adicional: number | string;
   disponivel: boolean;
+  created_at: string;
 }
 
 interface ProdutoPagina {
@@ -55,10 +57,12 @@ export default async function PaginaCardapioPublico({ params }: PaginaCardapioPr
     created_at: p.created_at,
     complementos_produto: (p.complementos_produto || []).map((c) => ({
       id: c.id,
+      item_cardapio_id: c.item_cardapio_id,
       nome: c.nome,
       preco_adicional: Number(c.preco_adicional),
       disponivel: c.disponivel,
-    })),
+      created_at: c.created_at,
+    })).filter((c) => c.disponivel),
   }));
 
   return (

@@ -52,6 +52,7 @@ export interface ItemCardapio {
   disponivel: boolean;
   imagem_url: string;
   created_at: string;
+  complementos_produto?: ComplementoProduto[];
   
   // Propriedade opcional de transporte sênior para carregar as escolhas do cliente até o checkout
   adicionais_selecionados?: AdicionalSelecionado[];

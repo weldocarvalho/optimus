@@ -154,9 +154,11 @@ export async function obterCardapioPorSlug(slug: string) {
       created_at,
       complementos_produto (
         id,
+        item_cardapio_id,
         nome,
         preco_adicional,
-        disponivel
+        disponivel,
+        created_at
       )
     `)
     .eq('restaurante_id', restaurante.id)
