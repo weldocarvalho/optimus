@@ -19,6 +19,10 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=""
 SUPABASE_SERVICE_ROLE_KEY=""
 STRIPE_SECRET_KEY=""
 STRIPE_WEBHOOK_SECRET=""
+HML_TEST_EMAIL="teste@restaurante.com"
+HML_TEST_PASSWORD="1234"
+HML_APP_PORT="4100"
+HML_TEST_SLUG=""
 ```
 
 ## Desenvolvimento local
@@ -36,6 +40,92 @@ npm run build
 ```
 
 Esses dois comandos devem estar verdes antes de publicar em produção.
+
+## Homologação automatizada (Bloco 1)
+
+```bash
+npm run build
+npm run test:hml:bloco1
+```
+
+O teste valida: proteção de rota sem sessão, login válido, acesso autenticado ao admin e logout com bloqueio novamente.
+
+## Homologação automatizada (Bloco 2)
+
+```bash
+npm run build
+npm run test:hml:bloco2
+```
+
+O teste valida: proteção das rotas `/admin/produtos`, `/admin/insumos` e `/admin/metricas` sem sessão, e acesso autenticado às três páginas com marcadores de renderização.
+
+## Homologação automatizada (Bloco 3)
+
+```bash
+npm run build
+npm run test:hml:bloco3
+```
+
+O teste valida: carregamento da vitrine pública por slug e renderização do checkout com carrinho vazio (estado inicial).
+
+## Homologação automatizada (Bloco 4)
+
+```bash
+npm run build
+npm run test:hml:bloco4
+```
+
+O teste valida: carregamento da tela de checkout por slug e regras defensivas da API de checkout para métodos/payloads inválidos.
+
+## Homologação automatizada (Bloco 5)
+
+```bash
+npm run build
+npm run test:hml:bloco5
+```
+
+O teste valida: contrato defensivo do webhook de pagamentos para método inválido, ausência de assinatura e assinatura inválida.
+
+## Homologação automatizada (Bloco 6)
+
+```bash
+npm run build
+npm run test:hml:bloco6
+```
+
+O teste valida: proteção da rota `/admin/cozinha` sem sessão e renderização dos principais marcadores operacionais com sessão autenticada.
+
+## Iteração com banco (etapa inicial)
+
+```bash
+npm run test:hml:db-contexto
+```
+
+O teste valida: autenticação do gestor, resolução de `restaurante_id` em `perfis_admin` e vínculo consistente na tabela `restaurantes`.
+
+## Iteração com banco (etapa 1 — insumos)
+
+```bash
+npm run test:hml:db-etapa1-insumos
+```
+
+O teste valida: criação, atualização e exclusão de insumo por actions (`adminInsumos`) com verificação de persistência no banco e cleanup do dado de teste.
+
+## Iteração com banco (etapa 2 — produto + ficha técnica + complementos)
+
+```bash
+npm run test:hml:db-etapa2-produto-complementos
+```
+
+O teste valida: criação de produto com ficha técnica e complementos obrigatórios, persistência em produto/composição/complementos, alternância de disponibilidade e cleanup completo dos dados de teste.
+
+## Iteração com banco (etapa 3 — leituras gerenciais)
+
+```bash
+npm run test:hml:db-etapa3-leituras
+```
+
+O teste valida: leitura de insumos e leitura de produtos com CMV calculado (`listarProdutosComCMV`) com consistência de custo/percentual/margem e cleanup dos dados de teste.
 
 ## Decisões técnicas importantes
 
