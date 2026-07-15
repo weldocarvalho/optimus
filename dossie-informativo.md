@@ -92,5 +92,4 @@ O banco é composto por tabelas normalizadas com forte consistência referencial
 ## 6. Diretrizes Relevantes
 
 * Design de Interface do Painel do Gestor: segue um padrão minimalista estilo iOS/Bento Grid, priorizando tons monocromáticos (zinco/cinza) com destaques em Coral/Laranja (#E16349) para botões de ação principal.
-* Segurança de Rotas: O arquivo utils/supabase/middleware.ts intercepta qualquer requisição iniciada por /admin. Caso o token de sessão não seja validado no servidor, o usuário deve ser redirecionado imediatamente para /login.
-
+* Segurança de Rotas: O arquivo `proxy.ts` aplica o filtro global de requisições e delega a validação de sessão para `utils/supabase/middleware.ts`. Caso o token de sessão não seja validado no servidor, o usuário deve ser redirecionado imediatamente para `/login`.
