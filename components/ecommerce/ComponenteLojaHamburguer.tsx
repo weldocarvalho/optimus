@@ -13,10 +13,7 @@ interface ComponenteLojaHamburguerProps {
 
 export default function ComponenteLojaHamburguer({ restaurante, produtos }: ComponenteLojaHamburguerProps) {
   return (
-    // Fundo cinza/creme ultra sutil para dar contraste máximo aos cards brancos
     <div className="min-h-screen bg-[#F6F5F3] text-[#1A1A1A] antialiased pb-32 font-sans select-none">
-      
-      {/* 1. Cabeçalho Comercial da Imagem (Ocupa a largura total da janela) */}
       <div className="w-full bg-[#E52521] text-white">
         <header className="w-full max-w-xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -27,7 +24,6 @@ export default function ComponenteLojaHamburguer({ restaurante, produtos }: Comp
             </button>
             <h1 className="font-black text-lg tracking-tight uppercase">{restaurante.nome}</h1>
           </div>
-          {/* Ícone de Sacola Superior Nativo */}
           <div className="relative">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" />
@@ -36,7 +32,6 @@ export default function ComponenteLojaHamburguer({ restaurante, produtos }: Comp
         </header>
       </div>
 
-      {/* 2. Navegação de Categorias Amarela (Ocupa a largura total da janela) */}
       <div className="w-full bg-[#FFC72C] border-b border-amber-500/20">
         <nav className="w-full max-w-xl mx-auto px-6 py-3.5 flex items-center justify-between text-xs font-black uppercase tracking-wider text-zinc-900 overflow-x-auto scrollbar-none">
           <button className="bg-[#E52521] text-white px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-sm">🍔 Hambúrgueres</button>
@@ -45,15 +40,12 @@ export default function ComponenteLojaHamburguer({ restaurante, produtos }: Comp
         </nav>
       </div>
 
-      {/* 3. LISTAGEM DE PRODUTOS ALINHADA À MARGEM (O SEU CORREÇÃO SOLICITADA) */}
-      {/* max-w-xl limita a largura e o px-6 cria a mesma margem interna elegante do seu checkout */}
       <div className="w-full max-w-xl mx-auto px-6 mt-8">
         <div className="flex flex-col gap-1 mb-4 select-none">
           <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Cardápio</span>
           <h2 className="text-xl font-black tracking-tight text-zinc-900">Os Mais Vendidos</h2>
         </div>
 
-        {/* Grade Estrutural dos Cards */}
         <div className="space-y-4">
           {produtos.length === 0 ? (
             <div className="text-center py-16 text-zinc-400 bg-white rounded-2xl border border-zinc-200/60 shadow-sm">
@@ -70,7 +62,6 @@ export default function ComponenteLojaHamburguer({ restaurante, produtos }: Comp
         </div>
       </div>
 
-      {/* Barra de Sacola com Visual Glassmorphic Corrigido */}
       <BarraCarrinhoFlutuante ehAcai={false} />
     </div>
   );
