@@ -82,6 +82,8 @@ export function CardItemBurger({ produto }: CardItemBurgerProps) {
         {/* Imagem do Produto à Esquerda */}
         <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 bg-[#FAFAFA] border border-zinc-100 flex items-center justify-center">
           {produto.imagem_url ? (
+            // Mantido <img> para aceitar URLs dinâmicas sem dependência de configuração de domínios no Next/Image.
+            // eslint-disable-next-line @next/next/no-img-element
             <img src={produto.imagem_url} alt={produto.nome} className="w-full h-full object-cover" />
           ) : (
             <svg className="w-10 h-10 text-zinc-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">

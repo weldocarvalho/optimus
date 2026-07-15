@@ -1,7 +1,7 @@
 // app/[slug]/page.tsx
 import { notFound } from 'next/navigation';
 import { obterCardapioPorSlug } from '@/actions/cardapio';
-import ComponenteLojaBurger from '@/components/ecommerce/ComponenteLojaBurger';
+import ComponenteLojaHamburguer from '@/components/ecommerce/ComponenteLojaHamburguer';
 
 
 interface PaginaCardapioProps {
@@ -63,7 +63,7 @@ export default async function PaginaCardapioPublico({ params }: PaginaCardapioPr
 
   return (
     <main className="min-h-screen bg-[#FDFDFD]">
-      <ComponenteLojaBurger 
+      <ComponenteLojaHamburguer 
         restaurante={{
           id: restaurante.id,
           nome: restaurante.nome

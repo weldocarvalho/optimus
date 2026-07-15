@@ -4,8 +4,7 @@
 import { useState, useTransition } from 'react';
 import { 
   ItemCardapioComCMV, 
-  atualizarStatusEmLote, 
-  alternarDisponibilidadeProduto
+  atualizarStatusEmLote
 } from '@/actions/admin';
 import { Insumo } from '@/types/database';
 import { useRouter } from 'next/navigation';
@@ -43,17 +42,6 @@ export default function ListaProdutosAdmin({
     } else {
       setSelecionados(produtosIniciais.map(p => p.id));
     }
-  };
-
-  const handleToggleStatus = (id: string, statusAtual: boolean) => {
-    startTransition(async () => {
-      try {
-        await alternarDisponibilidadeProduto(id, statusAtual);
-        router.refresh();
-      } catch (err) {
-        console.error("Erro ao alterar status do produto:", err);
-      }
-    });
   };
 
   const handleAlterarStatusEmLote = (novoStatus: boolean) => {
@@ -104,7 +92,6 @@ export default function ListaProdutosAdmin({
                 produto={produto}
                 isSelecionado={selecionados.includes(produto.id)}
                 onToggleSelect={() => handleToggleSelect(produto.id)}
-                onToggleStatus={handleToggleStatus}
               />
             ))
           )}

@@ -1,4 +1,4 @@
-// components/ecommerce/CardItemAcai.tsx
+// components/ecommerce/CartaoItemAcai.tsx
 'use client';
 
 import React from 'react';
@@ -13,25 +13,25 @@ interface ProdutoAcai {
   disponivel: boolean;
 }
 
-interface CardItemAcaiProps {
-  product: ProdutoAcai;
+interface CartaoItemAcaiProps {
+  produto: ProdutoAcai;
 }
 
-export function CardItemAcai({ product }: CardItemAcaiProps) {
+export function CartaoItemAcai({ produto }: CartaoItemAcaiProps) {
   const { adicionarItem, itens, removerItem } = useCarrinho();
 
   const produtoNormalizado: ItemCardapio = {
-    id: product.id,
+    id: produto.id,
     restaurante_id: '',
-    nome: product.nome,
-    descricao: product.descricao,
-    preco_venda: product.preco_venda,
-    disponivel: product.disponivel,
+    nome: produto.nome,
+    descricao: produto.descricao,
+    preco_venda: produto.preco_venda,
+    disponivel: produto.disponivel,
     imagem_url: '',
     created_at: new Date().toISOString()
   };
 
-  const itemNoCarrinho = itens.find(i => i.produto.id === product.id);
+  const itemNoCarrinho = itens.find(i => i.produto.id === produto.id);
   const qtd = itemNoCarrinho?.quantidade || 0;
 
   const formatarMoeda = (valor: number) => {
@@ -52,22 +52,22 @@ export function CardItemAcai({ product }: CardItemAcaiProps) {
       {/* DETALHES COM ALTO CONTRASTE */}
       <div className="flex-1 min-w-0 pr-1">
         <h3 className="font-black text-zinc-950 tracking-tight text-sm sm:text-base leading-tight">
-          {product.nome}
+          {produto.nome}
         </h3>
         <p className="text-zinc-400 text-xs mt-1.5 line-clamp-2 leading-relaxed font-bold">
-          {product.descricao || 'Combinação premium montada na hora com ingredientes frescos.'}
+          {produto.descricao || 'Combinação premium montada na hora com ingredientes frescos.'}
         </p>
         
         <div className="flex items-center justify-between mt-4">
           <span className="font-black text-[#3B0D2C] text-sm sm:text-base font-mono tracking-tight">
-            {formatarMoeda(product.preco_venda)}
+            {formatarMoeda(produto.preco_venda)}
           </span>
 
           {/* ACIONADORES OPERACIONAIS COMPACTOS */}
           {qtd > 0 ? (
             <div className="flex items-center bg-[#F3F3F3] rounded-[12px] p-1 gap-2.5 border border-zinc-200/30">
               <button 
-                onClick={() => removerItem(product.id)} 
+                onClick={() => removerItem(produto.id)} 
                 className="w-6 h-6 rounded-[8px] bg-white flex items-center justify-center text-xs font-black text-zinc-600 hover:bg-zinc-100 shadow-sm"
               >
                 -

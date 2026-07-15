@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { CardItemAcai } from './CardItemAcai';
+import { CartaoItemAcai } from './CartaoItemAcai';
 import BarraCarrinhoFlutuante from './BarraCarrinhoFlutuante';
 import { APP_BRAND_NAME } from '@/utils/branding';
 
@@ -79,7 +79,7 @@ export default function ComponenteLojaAcai({ restaurante, produtos }: Componente
             </div>
           ) : (
             produtos.map((produto) => (
-              <CardItemAcai key={produto.id} product={produto} />
+              <CartaoItemAcai key={produto.id} produto={produto} />
             ))
           )}
         </div>

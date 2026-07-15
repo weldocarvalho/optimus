@@ -75,7 +75,7 @@ export async function criarProdutoAdmin(dados: DadosNovoProduto) {
     if (prodError) throw prodError
 
     // 5. Inserção da Ficha Técnica na tabela 'composicao_produto' para dedução e análise de CMV
-    const insumosFiltrados = Object.entries(dados.fichaTecnica).filter(([_, qtd]) => parseFloat(qtd) > 0)
+    const insumosFiltrados = Object.entries(dados.fichaTecnica).filter(([, qtd]) => parseFloat(qtd) > 0)
     
     if (insumosFiltrados.length > 0) {
       const composicaoInserts = insumosFiltrados.map(([insumoId, qtd]) => ({

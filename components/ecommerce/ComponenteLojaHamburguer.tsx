@@ -1,17 +1,17 @@
-// components/ecommerce/ComponenteLojaBurger.tsx
+// components/ecommerce/ComponenteLojaHamburguer.tsx
 'use client';
 
 import React from 'react';
 import { ItemCardapio } from '@/types/database';
-import CardItemCardapio from './CardItemCardapio';
+import CartaoItemCardapio from './CartaoItemCardapio';
 import BarraCarrinhoFlutuante from './BarraCarrinhoFlutuante';
 
-interface ComponenteLojaBurgerProps {
+interface ComponenteLojaHamburguerProps {
   restaurante: { id: string; nome: string };
   produtos: ItemCardapio[];
 }
 
-export default function ComponenteLojaBurger({ restaurante, produtos }: ComponenteLojaBurgerProps) {
+export default function ComponenteLojaHamburguer({ restaurante, produtos }: ComponenteLojaHamburguerProps) {
   return (
     // Fundo cinza/creme ultra sutil para dar contraste máximo aos cards brancos
     <div className="min-h-screen bg-[#F6F5F3] text-[#1A1A1A] antialiased pb-32 font-sans select-none">
@@ -61,10 +61,9 @@ export default function ComponenteLojaBurger({ restaurante, produtos }: Componen
             </div>
           ) : (
             produtos.map((produto) => (
-              <CardItemCardapio 
+              <CartaoItemCardapio 
                 key={produto.id} 
                 produto={produto} 
-                ehAcai={false} 
               />
             ))
           )}

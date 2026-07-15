@@ -1,4 +1,4 @@
-// components/ecommerce/CardItemCardapio.tsx
+// components/ecommerce/CartaoItemCardapio.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -7,10 +7,9 @@ import { useCarrinho } from './ContextoCarrinho';
 
 interface CardProps {
   produto: ItemCardapio;
-  ehAcai: boolean;
 }
 
-export default function CardItemCardapio({ produto, ehAcai }: CardProps) {
+export default function CartaoItemCardapio({ produto }: CardProps) {
   const { adicionarItem, itens, removerItem } = useCarrinho();
   const [sanfonaAberta, setSanfonaAberta] = useState(false);
   

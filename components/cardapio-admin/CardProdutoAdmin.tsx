@@ -7,10 +7,9 @@ interface CardProps {
   produto: ItemCardapioComCMV;
   isSelecionado: boolean;
   onToggleSelect: () => void;
-  onToggleStatus: (id: string, statusAtual: boolean) => void;
 }
 
-export default function CardProdutoAdmin({ produto, isSelecionado, onToggleSelect, onToggleStatus }: CardProps) {
+export default function CardProdutoAdmin({ produto, isSelecionado, onToggleSelect }: CardProps) {
   const cmvCritico = produto.percentual_cmv > 40;
 
   return (
