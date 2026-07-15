@@ -1,6 +1,7 @@
 // components/ecommerce/CardItemCardapio.tsx
 'use client';
 
+import React, { useState } from 'react';
 import { ItemCardapio } from '@/types/database';
 import { useCarrinho } from './ContextoCarrinho';
 
@@ -11,65 +12,116 @@ interface CardProps {
 
 export default function CardItemCardapio({ produto, ehAcai }: CardProps) {
   const { adicionarItem, itens, removerItem } = useCarrinho();
+  const [sanfonaAberta, setSanfonaAberta] = useState(false);
   
   const itemNoCarrinho = itens.find(i => i.produto.id === produto.id);
   const qtd = itemNoCarrinho?.quantidade || 0;
 
-  // ENGENHARIA DE ESTILOS CAMALEÃO (BENTO PREMIUM)
-  // Se for Açaí, aplica o Roxo Veludo. Se não, mantém as cores base.
-  const corBotaoMais = ehAcai ? 'bg-[#3B0D2C] hover:bg-[#2C0A25]' : 'bg-[#E16349] hover:bg-[#c8523a]';
-  const corBotaoAdicionar = ehAcai ? 'bg-[#3B0D2C] hover:bg-[#2C0A25]' : 'bg-zinc-950 hover:bg-zinc-800';
-  const corFundoThumbnail = ehAcai ? 'bg-[#7D1A52]/5 text-[#3B0D2C]' : 'text-amber-600 bg-amber-50';
+  // Adicionais simulados com base no que está cadastrado na ficha técnica
+  const adicionaisMock = [
+    { id: '1', nome: 'Queijo Cheddar Extra', preco: 3.50 },
+    { id: '2', nome: 'Bacon Crispy', preco: 4.00 },
+    { id: '3', nome: 'Molho Especial da Casa', preco: 2.00 }
+  ];
 
   return (
-    <div className="bg-white border border-zinc-200/50 rounded-[24px] p-4 flex gap-4 shadow-sm shadow-zinc-200/40 items-center hover:border-zinc-300/80 transition-all select-none">
+    <div className="bg-white border border-zinc-200/50 rounded-[24px] shadow-sm overflow-hidden transition-all">
       
-      {/* Thumbnail Estilizada */}
-      <div className={`w-20 h-20 rounded-[18px] flex items-center justify-center flex-shrink-0 text-3xl shadow-inner ${corFundoThumbnail}`}>
-        {ehAcai ? '🍧' : '🍔'}
-      </div>
+      {/* Bloco Principal do Produto (Gatilho para abrir a Sanfona) */}
+      <div 
+        onClick={() => setSanfonaAberta(!sanfonaAberta)}
+        className="p-4 flex gap-4 items-center cursor-pointer select-none hover:bg-zinc-50/50 transition-colors"
+      >
+        {/* Thumbnail Estilizada */}
+        <div className="w-16 h-16 rounded-[18px] flex items-center justify-center flex-shrink-0 text-2xl bg-amber-50 text-amber-600 shadow-inner">
+          🍔
+        </div>
 
-      {/* Detalhes do Produto */}
-      <div className="flex-1 min-w-0">
-        <h3 className="font-bold text-zinc-950 truncate text-sm sm:text-base leading-tight">
-          {produto.nome}
-        </h3>
-        <p className="text-zinc-400 text-xs mt-1.5 line-clamp-2 leading-relaxed font-medium">
-          {produto.descricao || 'Sem descrição disponível.'}
-        </p>
-        
-        <div className="flex items-center justify-between mt-3.5">
-          <span className="font-black text-emerald-600 text-sm sm:text-base">
+        {/* Detalhes do Produto */}
+        <div className="flex-1 min-w-0">
+          <h3 className="font-bold text-zinc-950 truncate text-xs sm:text-sm leading-tight">
+            {produto.nome}
+          </h3>
+          <p className="text-zinc-400 text-[11px] mt-1 line-clamp-1 leading-relaxed font-medium">
+            {produto.descricao || 'Receita artesanal montada com insumos selecionados.'}
+          </p>
+          <span className="font-black text-zinc-900 text-xs sm:text-sm block mt-2 font-mono">
             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(produto.preco_venda))}
           </span>
+        </div>
 
-          {/* Seletores Reativos com Adaptação de Paleta */}
-          {qtd > 0 ? (
-            <div className="flex items-center bg-[#F3F3F3] rounded-xl p-1 gap-3 border border-zinc-200/20">
-              <button 
-                onClick={() => removerItem(produto.id)} 
-                className="w-6 h-6 rounded-lg bg-white flex items-center justify-center text-xs font-black text-zinc-600 hover:bg-zinc-100 shadow-sm"
-              >
-                -
-              </button>
-              <span className="text-xs font-bold px-0.5 text-zinc-800">{qtd}</span>
-              <button 
-                onClick={() => adicionarItem(produto)} 
-                className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black text-white shadow-sm transition-colors ${corBotaoMais}`}
-              >
-                +
-              </button>
-            </div>
-          ) : (
-            <button 
-              onClick={() => adicionarItem(produto)}
-              className={`text-white font-bold text-xs px-4 py-2 rounded-xl active:scale-95 transition-all shadow-sm ${corBotaoAdicionar}`}
-            >
-              Adicionar
-            </button>
-          )}
+        {/* Ícone Indicador de Sanfona (Gira 180 graus quando aberta) */}
+        <div className="shrink-0 p-1 text-zinc-400">
+          <svg 
+            className={`w-4 h-4 transform transition-transform duration-200 ${sanfonaAberta ? 'rotate-180 text-zinc-800' : ''}`} 
+            fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
         </div>
       </div>
+
+      {/* --- CONTEÚDO DA SANFONA EXPANSÍVEL (ADICIONAIS DO PRODUTO) --- */}
+      {sanfonaAberta && (
+        <div className="border-t border-zinc-100 bg-zinc-50/50 p-4 space-y-3 animate-in fade-in duration-200">
+          <div className="flex justify-between items-center select-none">
+            <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400">Turbine seu pedido</span>
+            {qtd > 0 && (
+              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                Item na sacola
+              </span>
+            )}
+          </div>
+
+          {/* Listagem de Adicionais Opcionais */}
+          <div className="space-y-2">
+            {adicionaisMock.map((adi) => (
+              <div key={adi.id} className="bg-white border border-zinc-200/40 rounded-xl p-3 flex justify-between items-center shadow-2xs">
+                <div>
+                  <span className="text-xs font-bold text-zinc-800 block">{adi.nome}</span>
+                  <span className="text-[11px] font-extrabold text-zinc-500 font-mono">+ {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(adi.preco)}</span>
+                </div>
+                {/* Botão de Checkbox ou Seleção Rápida */}
+                <button type="button" className="w-5 h-5 rounded-md border border-zinc-300 hover:border-zinc-400 transition-colors flex items-center justify-center text-white bg-white active:scale-95">
+                  <span className="text-[10px]"></span>
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Controlador de Quantidade Geral do Item para Adicionar ao Carrinho */}
+          <div className="pt-2 flex justify-between items-center border-t border-zinc-100/80">
+            <span className="text-xs font-medium text-zinc-500">Quantidade</span>
+            {qtd > 0 ? (
+              <div className="flex items-center bg-zinc-100 border border-zinc-200/40 rounded-xl p-0.5 gap-2.5">
+                <button 
+                  type="button" 
+                  onClick={() => removerItem(produto.id)} 
+                  className="w-6 h-6 rounded-lg bg-white flex items-center justify-center text-xs font-black text-zinc-600 hover:bg-zinc-200 shadow-2xs transition-colors"
+                >
+                  -
+                </button>
+                <span className="text-xs font-black px-0.5 text-zinc-800 font-mono">{qtd}</span>
+                <button 
+                  type="button" 
+                  onClick={() => adicionarItem(produto)} 
+                  className="w-6 h-6 rounded-lg bg-zinc-900 flex items-center justify-center text-xs font-black text-white hover:bg-zinc-800 shadow-2xs transition-colors"
+                >
+                  +
+                </button>
+              </div>
+            ) : (
+              <button 
+                type="button"
+                onClick={() => adicionarItem(produto)}
+                className="bg-zinc-900 hover:bg-zinc-800 text-white font-black text-[11px] px-4 py-2 rounded-xl transition-all uppercase tracking-wider"
+              >
+                Adicionar à Sacola
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

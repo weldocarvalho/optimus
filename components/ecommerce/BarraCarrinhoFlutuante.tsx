@@ -1,10 +1,10 @@
 // components/ecommerce/BarraCarrinhoFlutuante.tsx
 'use client';
 
-import { useState } from 'react';
-import { useCarrinho } from './ContextoCarrinho';
+import React from 'react';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import ModalCheckout from './ModalCheckout';
+import { useCarrinho } from './ContextoCarrinho';
 
 interface BarraProps {
   ehAcai?: boolean;
@@ -14,53 +14,62 @@ export default function BarraCarrinhoFlutuante({ ehAcai = false }: BarraProps) {
   const params = useParams();
   const slug = (params?.slug as string) || '';
   const { totalItens, valorTotal } = useCarrinho();
-  const [checkoutAberto, setCheckoutAberto] = useState(false);
 
+  // Oculta a barra caso a sacola esteja vazia para não obstruir o cardápio
   if (totalItens === 0) return null;
 
-  const corFundoSacola = ehAcai ? 'bg-[#1F0417]/95 border-[#3B0D2C]/40' : 'bg-zinc-950 border-zinc-800/80';
-  const corBotaoSacola = ehAcai ? 'bg-[#3B0D2C] hover:bg-[#2C0A25]' : 'bg-[#E16349] hover:bg-[#c8523a]';
-  const corSombraSacola = ehAcai ? 'shadow-[#1F0417]/20' : 'shadow-orange-600/10';
+  // --- DESIGN DE INTERFACE PREMIUM (GLASSMORPHISM EQUILIBRADO) ---
+  // Se for Açaí, mantém o Roxo Veludo Profundo. Se for Burger, aplica o vidro iOS.
+  const corFundoSacola = ehAcai 
+    ? 'bg-[#3B0D2C]/95 border-[#7D1A52]/30 shadow-[#3B0D2C]/20' 
+    : 'bg-white/80 border-zinc-200/60 shadow-zinc-300/40 backdrop-blur-xl'; // Efeito vidro fosco Apple
+
+  const corBotaoQuantidade = ehAcai 
+    ? 'bg-[#2C0A21] text-purple-200 border border-[#7D1A52]/20' 
+    : 'bg-zinc-100 text-zinc-800 border border-zinc-200 font-mono font-black'; // Badge limpo e elegante
+
+  const corBotaoAcao = ehAcai 
+    ? 'bg-[#7D1A52] hover:bg-[#631440] text-white' 
+    : 'bg-[#E52521] hover:bg-[#c91d1a] text-white shadow-[0_4px_14px_rgba(229,37,33,0.3)]'; // Vermelho institucional idêntico à imagem
+
+  const corTextoSubtotal = ehAcai ? 'text-white' : 'text-zinc-900';
+  const corTextoLabel = ehAcai ? 'text-zinc-400' : 'text-zinc-400';
+
+  const formatarMoeda = (valor: number) => {
+    return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
 
   return (
-    <>
-      {/* BARRA FIXA FLUTUANTE NO RODAPÉ */}
-      <div className="fixed bottom-0 inset-x-0 p-4 bg-transparent z-40 animate-in slide-in-from-bottom duration-300">
-        <div className={`max-w-md mx-auto text-white rounded-[24px] p-4 flex items-center justify-between shadow-2xl backdrop-blur-md border ${corFundoSacola} ${corSombraSacola}`}>
-          
-          {/* Lado Esquerdo: Totais */}
-          <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs text-white shadow-sm transition-colors ${corBotaoSacola}`}>
-              {totalItens}
-            </div>
-            <div>
-              <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Subtotal</span>
-              <span className="font-extrabold text-sm text-white">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorTotal)}
-              </span>
-            </div>
+    <div className="fixed bottom-0 inset-x-0 p-4 bg-transparent z-40 animate-in slide-in-from-bottom duration-300 select-none">
+      {/* Container da Barra Flutuante Otimizado para Mobile-First */}
+      <div className={`max-w-md mx-auto rounded-[24px] p-4 flex items-center justify-between shadow-xl border ${corFundoSacola}`}>
+        
+        {/* Lado Esquerdo: Quantidade e Subtotal */}
+        <div className="flex items-center gap-3.5">
+          {/* Badge Indicador de Itens Cadastrados */}
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shadow-sm transition-colors ${corBotaoQuantidade}`}>
+            {totalItens}
           </div>
-
-          {/* Lado Direito: Dispara a Abertura do Modal de Checkout */}
-          <button 
-            onClick={() => setCheckoutAberto(true)}
-            className={`text-white font-black text-xs px-5 py-3 rounded-[16px] active:scale-[0.98] transition-all flex items-center gap-1.5 shadow-md ${corBotaoSacola}`}
-          >
-            Ver Sacola
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-            </svg>
-          </button>
+          <div>
+            <span className={`text-[9px] block font-bold uppercase tracking-widest ${corTextoLabel}`}>Subtotal</span>
+            <span className={`font-black text-sm font-mono tracking-tight ${corTextoSubtotal}`}>
+              {formatarMoeda(valorTotal)}
+            </span>
+          </div>
         </div>
-      </div>
 
-      {/* MODAL DE CHECKOUT ACOPLADO VIA PORTAL */}
-      <ModalCheckout 
-        aberto={checkoutAberto} 
-        onFechar={() => setCheckoutAberto(false)} 
-        slug={slug} 
-        ehAcai={ehAcai} 
-      />
-    </>
+        {/* Lado Direito: Link de Rota para Nova Tela Isolada */}
+        <Link 
+          href={`/${slug}/checkout`}
+          className={`font-black text-xs px-5 py-3 rounded-[16px] active:scale-[0.98] transition-all flex items-center gap-1.5 shadow-md uppercase tracking-wider ${corBotaoAcao}`}
+        >
+          Ver Sacola
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+          </svg>
+        </Link>
+
+      </div>
+    </div>
   );
 }

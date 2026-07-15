@@ -1,7 +1,9 @@
 // app/[slug]/page.tsx
 import { notFound } from 'next/navigation';
 import { obterCardapioPorSlug } from '@/actions/cardapio';
-import { ComponenteLojaBurger } from '@/components/ecommerce/ComponenteLojaBurger';
+import ComponenteLojaBurger from '@/components/ecommerce/ComponenteLojaBurger';
+import ComponenteLojaAcai from '@/components/ecommerce/ComponenteLojaAcai';
+
 
 interface PaginaCardapioProps {
   params: Promise<{

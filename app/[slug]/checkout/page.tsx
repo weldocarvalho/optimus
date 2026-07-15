@@ -1,28 +1,30 @@
-// components/ecommerce/ModalCheckout.tsx (Parte 1 de 2)
+// app/[slug]/checkout/page.tsx (Parte 1 de 2)
 'use client';
 
 import React, { useState } from 'react';
-import { useCarrinho } from './ContextoCarrinho';
-import AbasCheckout from './AbasCheckout';
-import AbaCep from './AbaCep';
-import AbaGps from './AbaGps';
-import AbaRetirada from './AbaRetirada';
-import FormularioEndereco from './FormularioEndereco';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useCarrinho } from '@/components/ecommerce/ContextoCarrinho';
+import AbasCheckout from '@/components/ecommerce/AbasCheckout';
+import AbaCep from '@/components/ecommerce/AbaCep';
+import AbaGps from '@/components/ecommerce/AbaGps';
+import AbaRetirada from '@/components/ecommerce/AbaRetirada';
+import FormularioEndereco from '@/components/ecommerce/FormularioEndereco';
 
-interface ModalCheckoutProps {
-  aberto: boolean; // Controla se o fluxo de checkout assume a tela
-  onFechar: () => void; // Ação de voltar para o cardápio
-  slug: string;
-  ehAcai: boolean;
-}
+export default function TelaDeCheckoutDedicada() {
+  const params = useParams();
+  const router = useRouter();
+  const slug = (params?.slug as string) || '';
+  
+  // Detecta o tipo de estabelecimento de forma abstrata caso precise tratar CMVs ou regras pós-venda
+  const ehAcai = slug.includes('acai') || slug.includes('acaiteria');
 
-export default function ModalCheckout({ aberto, onFechar, slug, ehAcai }: ModalCheckoutProps) {
   const { itens, adicionarItem, removerItem, valorTotal, totalItens } = useCarrinho();
   
-  // Controle de Etapas Sequenciais na Própria Página
+  // Controle de Etapas Sequenciais na Nova Tela
   const [etapa, setEtapa] = useState<'SACOLA' | 'ENTREGA'>('SACOLA');
   
-  // Estados do Formulário de Entrega (Paleta Monocromática)
+  // Estados do Formulário de Entrega Monocromático
   const [abaAtiva, setAbaAtiva] = useState<'CEP' | 'GPS' | 'RETIRADA'>('CEP');
   const [cep, setCep] = useState('');
   const [rua, setRua] = useState('');
@@ -31,21 +33,26 @@ export default function ModalCheckout({ aberto, onFechar, slug, ehAcai }: ModalC
   const [nomeCliente, setNomeCliente] = useState('');
   const [telefoneCliente, setTelefoneCliente] = useState('');
 
-  // Se o checkout não estiver ativo, ele não renderiza nada na página
-  if (!aberto) return null;
-
   const formatarMoeda = (valor: number) => {
     return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  const handleAvancarParaEntrega = (e: React.FormEvent) => {
+  const handleVoltarClique = () => {
+    if (etapa === 'ENTREGA') {
+      setEtapa('SACOLA');
+    } else {
+      router.push(`/${slug}`); // Retorna nativamente para o cardápio correto
+    }
+  };
+
+  const handleAcaoPrincipal = (e: React.FormEvent) => {
     e.preventDefault();
     if (etapa === 'SACOLA') {
       if (itens.length === 0) return;
       setEtapa('ENTREGA');
     } else {
-      // Disparador do Gateway Real (Stripe / Asaas / Mercado Pago)
-      alert('Redirecionando para o ambiente seguro de pagamento...');
+      // Disparador de envio para o Banco de Dados / APIs de Pagamento reais
+      alert('Processando transação com criptografia de ponta...');
     }
   };
 
@@ -65,7 +72,7 @@ export default function ModalCheckout({ aberto, onFechar, slug, ehAcai }: ModalC
               }, 100);
             }
           } catch (error) {
-            console.error('Erro na geolocalização:', error);
+            console.error('Erro ao processar mapa:', error);
           }
         },
         (error) => console.error(error)
@@ -74,54 +81,53 @@ export default function ModalCheckout({ aberto, onFechar, slug, ehAcai }: ModalC
   };
 
   return (
-    <div className="w-full max-w-xl mx-auto bg-white min-h-screen flex flex-col justify-between animate-in fade-in duration-200 text-[#1A1A1A]">
+    <main className="min-h-screen w-full bg-[#F8F8F8] text-[#1A1A1A] font-sans antialiased flex flex-col justify-between selection:bg-zinc-900 selection:text-white">
       
-      {/* Bloco Superior: Barra de Navegação Embutida e Limpa */}
-      <div className="flex-1 flex flex-col">
-        <header className="p-6 border-b border-zinc-100 flex items-center justify-between select-none bg-white">
-          <div className="flex items-center gap-4">
-            <button 
-              type="button" 
-              onClick={etapa === 'ENTREGA' ? () => setEtapa('SACOLA') : onFechar}
-              className="w-9 h-9 rounded-xl bg-zinc-50 hover:bg-zinc-100 flex items-center justify-center text-zinc-800 transition-colors border border-zinc-200/40"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-              </svg>
-            </button>
-            <div>
-              <h2 className="text-base font-black tracking-tight text-zinc-900">
-                {etapa === 'SACOLA' ? 'Revisar Sacola' : 'Entrega'}
-              </h2>
-              <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-0.5">
-                {etapa === 'SACOLA' ? `Passo 1 de 2 • ${totalItens} unidades` : 'Passo 2 de 2 • Checkout Seguro'}
-              </p>
-            </div>
+      {/* Área de Conteúdo Superior */}
+      <div className="w-full max-w-xl mx-auto bg-white flex-1 flex flex-col shadow-sm border-x border-zinc-200/40">
+        
+        {/* Topbar da Nova Tela Separada */}
+        <header className="p-6 border-b border-zinc-100 flex items-center gap-4 bg-white sticky top-0 z-10 shrink-0">
+          <button 
+            type="button" 
+            onClick={handleVoltarClique}
+            className="w-9 h-9 rounded-xl bg-zinc-50 hover:bg-zinc-100 flex items-center justify-center text-zinc-800 transition-colors border border-zinc-200/40"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+          <div>
+            <h1 className="text-base font-black tracking-tight text-zinc-900">
+              {etapa === 'SACOLA' ? 'Revisar Sacola' : 'Finalizar Pedido'}
+            </h1>
+            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-0.5">
+              {etapa === 'SACOLA' ? `Etapa 1 de 2 • ${totalItens} itens` : 'Etapa 2 de 2 • Gateway Seguro'}
+            </p>
           </div>
         </header>
 
-        {/* Corpo do Fluxo Integrado na Página */}
-        <div className="p-6 space-y-6">
+        {/* Scroll Central da Rota */}
+        <div className="p-6 space-y-6 flex-1 bg-white">
           
-          {/* PASSO 1: LISTAGEM NEUTRA DA SACOLA */}
+          {/* RENDERIZAÇÃO DA SACOLA EM NOVA TELA */}
           {etapa === 'SACOLA' && (
             <div className="space-y-4">
               {itens.length === 0 ? (
-                <div className="text-center py-16 text-zinc-400 italic text-xs font-medium bg-zinc-50 rounded-2xl border border-dashed border-zinc-200">
-                  Sua sacola está vazia. Volte ao cardápio para escolher seus produtos.
+                <div className="text-center py-20 text-zinc-400 italic text-xs font-medium bg-zinc-50 rounded-2xl border border-dashed border-zinc-200 p-4">
+                  Sua sacola está limpa. Adicione itens para prosseguir ao pagamento.
+                  <Link href={`/${slug}`} className="block mt-4 text-xs font-black uppercase tracking-wider text-zinc-900 underline">Voltar à Loja</Link>
                 </div>
               ) : (
                 itens.map((item) => (
                   <div 
                     key={item.produto.id} 
-                    className="bg-white border border-zinc-200/60 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-sm transition-all"
+                    className="bg-white border border-zinc-200/60 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-sm"
                   >
-                    {/* Thumbnail Ultra Neutra com Letra Inicial do Item */}
-                    <div className="w-12 h-12 rounded-xl bg-zinc-50 border border-zinc-200/60 flex items-center justify-center text-xs font-black text-zinc-500 font-mono shrink-0 shadow-inner">
+                    <div className="w-12 h-12 rounded-xl bg-zinc-50 border border-zinc-200/60 flex items-center justify-center text-xs font-black text-zinc-400 font-mono shrink-0 shadow-inner">
                       {item.produto.nome.substring(0, 2).toUpperCase()}
                     </div>
 
-                    {/* Detalhamento Técnico do Produto */}
                     <div className="flex-1 min-w-0">
                       <h4 className="font-bold text-zinc-900 text-xs sm:text-sm truncate leading-tight">
                         {item.produto.nome}
@@ -131,7 +137,6 @@ export default function ModalCheckout({ aberto, onFechar, slug, ehAcai }: ModalC
                       </span>
                     </div>
 
-                    {/* Controles de Quantidade Monocromáticos e Minimalistas */}
                     <div className="flex items-center bg-zinc-50 rounded-xl p-1 gap-2 border border-zinc-200/40 shrink-0 select-none">
                       <button 
                         type="button"
@@ -155,14 +160,14 @@ export default function ModalCheckout({ aberto, onFechar, slug, ehAcai }: ModalC
             </div>
           )}
           {etapa === 'ENTREGA' && (
-            <div className="space-y-4">
-              {/* Resumo compacto de contexto financeiro */}
+            <div className="space-y-4 animate-in fade-in duration-200">
+              {/* Card de Resumo de Itens Selecionados */}
               <div className="bg-zinc-50 border border-zinc-200/60 rounded-xl p-4 flex justify-between items-center text-xs font-medium">
-                <span className="text-zinc-500">Resumo da Sacola</span>
-                <span className="font-bold text-zinc-900">{totalItens} {totalItens === 1 ? 'item selecionado' : 'itens selecionados'}</span>
+                <span className="text-zinc-500">Resumo da Compra</span>
+                <span className="font-bold text-zinc-900">{totalItens} {totalItens === 1 ? 'item' : 'itens'} na sacola</span>
               </div>
 
-              {/* Bloco de Localização Monocromático */}
+              {/* Seletor de Tipo de Entrega Monocromático */}
               <div className="bg-white border border-zinc-200/60 rounded-2xl overflow-hidden shadow-sm flex flex-col">
                 <AbasCheckout 
                   abaAtiva={abaAtiva} 
@@ -185,7 +190,7 @@ export default function ModalCheckout({ aberto, onFechar, slug, ehAcai }: ModalC
                 </div>
               </div>
 
-              {/* Identificação de Contato Obrigatória (Estilo Inputs Apple) */}
+              {/* Informações de Contato Obrigatórias (Estilo Carteira iOS) */}
               <div className="bg-white border border-zinc-200/60 rounded-2xl p-4 space-y-3 shadow-sm">
                 <div className="space-y-1">
                   <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Nome Completo</label>
@@ -213,34 +218,34 @@ export default function ModalCheckout({ aberto, onFechar, slug, ehAcai }: ModalC
             </div>
           )}
         </div>
-      </div>
-
-      {/* Rodapé Fixo na Base da Página (Visual de Conversão Stripe) */}
-      <footer className="p-6 border-t border-zinc-100 bg-white space-y-4 shrink-0 select-none">
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Total do Pedido</span>
-            <span className="text-xl font-black text-zinc-900 font-mono tracking-tight">
-              {formatarMoeda(valorTotal)}
-            </span>
+        
+        {/* Rodapé de Fechamento de Conta de Alta Performance Financeira */}
+        <footer className="p-6 border-t border-zinc-100 bg-white space-y-4 shrink-0 select-none w-full max-w-xl mx-auto">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Subtotal Líquido</span>
+              <span className="text-xl font-black text-zinc-900 font-mono tracking-tight">
+                {formatarMoeda(valorTotal)}
+              </span>
+            </div>
+            {etapa === 'SACOLA' && itens.length > 0 && (
+              <span className="text-[10px] font-bold text-zinc-600 bg-zinc-100 px-2.5 py-1 rounded-md border border-zinc-200/40">
+                Itens revisados
+              </span>
+            )}
           </div>
-          {etapa === 'SACOLA' && itens.length > 0 && (
-            <span className="text-[10px] font-bold text-zinc-600 bg-zinc-100 px-2.5 py-1 rounded-md border border-zinc-200/40">
-              Pronto para avançar
-            </span>
-          )}
-        </div>
 
-        <button
-          type="button"
-          onClick={handleAvancarParaEntrega}
-          disabled={itens.length === 0}
-          className="w-full py-4 px-6 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all duration-200 active:scale-[0.99] shadow-sm disabled:opacity-30 disabled:pointer-events-none"
-        >
-          {etapa === 'SACOLA' ? 'Avançar para Entrega' : 'Ir para o Pagamento'}
-        </button>
-      </footer>
+          <button
+            type="button"
+            onClick={handleAcaoPrincipal}
+            disabled={itens.length === 0}
+            className="w-full py-4 px-6 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all duration-200 active:scale-[0.99] shadow-sm disabled:opacity-30 disabled:pointer-events-none"
+          >
+            {etapa === 'SACOLA' ? 'Avançar para Entrega' : 'Ir para o Pagamento'}
+          </button>
+        </footer>
 
-    </div>
+      </div>
+    </main>
   );
 }
