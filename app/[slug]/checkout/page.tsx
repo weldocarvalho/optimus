@@ -119,7 +119,7 @@ export default function TelaDeCheckoutDedicada() {
               ) : (
                 itens.map((item) => (
                   <div 
-                    key={item.produto.id} 
+                    key={item.idUnico} 
                     className="bg-white border border-zinc-200/60 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-sm"
                   >
                     <div className="w-12 h-12 rounded-xl bg-zinc-50 border border-zinc-200/60 flex items-center justify-center text-xs font-black text-zinc-400 font-mono shrink-0 shadow-inner">
@@ -138,7 +138,7 @@ export default function TelaDeCheckoutDedicada() {
                     <div className="flex items-center bg-zinc-50 rounded-xl p-1 gap-2 border border-zinc-200/40 shrink-0 select-none">
                       <button 
                         type="button"
-                        onClick={() => removerItem(item.produto.id)} 
+                        onClick={() => removerItem(item.idUnico)} 
                         className="w-6 h-6 rounded-lg bg-white border border-zinc-200/40 flex items-center justify-center text-xs font-black text-zinc-600 hover:bg-zinc-100 shadow-sm transition-colors"
                       >
                         -
@@ -146,7 +146,7 @@ export default function TelaDeCheckoutDedicada() {
                       <span className="text-xs font-black px-1.5 text-zinc-900 font-mono">{item.quantidade}</span>
                       <button 
                         type="button"
-                        onClick={() => adicionarItem(item.produto)} 
+                        onClick={() => adicionarItem(item.produto, item.adicionaisEscolhidos)} 
                         className="w-6 h-6 rounded-lg bg-zinc-900 hover:bg-zinc-800 flex items-center justify-center text-xs font-black text-white shadow-sm transition-colors"
                       >
                         +

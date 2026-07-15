@@ -1,7 +1,7 @@
 // components/ecommerce/ContextoCarrinho.tsx
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
 export interface Complemento {
   id: string;
@@ -39,9 +39,38 @@ interface ContextoCarrinhoType {
 }
 
 const ContextoCarrinho = createContext<ContextoCarrinhoType | undefined>(undefined);
+const CARRINHO_STORAGE_KEY = 'acelera-food:carrinho';
 
 export function ProvedorCarrinho({ children }: { children: React.ReactNode }) {
-  const [itens, setItens] = useState<ItemCarrinho[]>([]);
+  const [itens, setItens] = useState<ItemCarrinho[]>(() => {
+    if (typeof window === 'undefined') {
+      return [];
+    }
+
+    try {
+      const carrinhoSalvo = window.localStorage.getItem(CARRINHO_STORAGE_KEY);
+      if (!carrinhoSalvo) {
+        return [];
+      }
+
+      const parsed = JSON.parse(carrinhoSalvo) as ItemCarrinho[];
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (error) {
+      console.error('Falha ao restaurar carrinho do localStorage:', error);
+    }
+
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CARRINHO_STORAGE_KEY, JSON.stringify(itens));
+    } catch (error) {
+      console.error('Falha ao persistir carrinho no localStorage:', error);
+    }
+  }, [itens]);
 
   const adicionarItem = (produto: ItemCardapio, adicionais: Complemento[] = []) => {
     setItens((itensAtuais) => {
@@ -88,7 +117,14 @@ export function ProvedorCarrinho({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const limparCarrinho = () => setItens([]);
+  const limparCarrinho = () => {
+    setItens([]);
+    try {
+      window.localStorage.removeItem(CARRINHO_STORAGE_KEY);
+    } catch (error) {
+      console.error('Falha ao limpar carrinho do localStorage:', error);
+    }
+  };
 
   const valorTotal = itens.reduce((acc, item) => acc + (item.produto.preco_venda * item.quantidade), 0);
   const totalItens = itens.reduce((acc, item) => acc + item.quantidade, 0);

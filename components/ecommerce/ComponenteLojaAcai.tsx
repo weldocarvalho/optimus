@@ -1,9 +1,12 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { CartaoItemAcai } from './CartaoItemAcai';
 import BarraCarrinhoFlutuante from './BarraCarrinhoFlutuante';
 import { APP_BRAND_NAME } from '@/utils/branding';
+import { useCarrinho } from './ContextoCarrinho';
 
 interface ProdutoCardapio {
   id: string;
@@ -19,6 +22,10 @@ interface ComponenteLojaAcaiProps {
 }
 
 export default function ComponenteLojaAcai({ restaurante, produtos }: ComponenteLojaAcaiProps) {
+  const params = useParams();
+  const slug = (params?.slug as string) || '';
+  const { totalItens } = useCarrinho();
+
   return (
     <div className="min-h-screen bg-[#F6F5F3] text-[#1A1A1A] antialiased pb-32 font-sans select-none">
       <div className="w-full bg-[#3B0D2C] border-b-[4px] border-[#7D1A52]/30 text-white shadow-xl shadow-purple-950/10 transition-transform duration-300">
@@ -39,11 +46,16 @@ export default function ComponenteLojaAcai({ restaurante, produtos }: Componente
             </div>
           </div>
 
-          <div className="relative text-purple-300 hover:text-white transition-colors cursor-pointer">
+          <Link href={`/${slug}/checkout`} className="relative text-purple-300 hover:text-white transition-colors cursor-pointer" aria-label="Ver sacola">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" />
             </svg>
-          </div>
+            {totalItens > 0 && (
+              <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 bg-white text-[#3B0D2C] rounded-full text-[10px] font-black flex items-center justify-center leading-none">
+                {totalItens}
+              </span>
+            )}
+          </Link>
         </header>
       </div>
 

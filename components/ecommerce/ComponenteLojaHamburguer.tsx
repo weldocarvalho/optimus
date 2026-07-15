@@ -2,9 +2,12 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { ItemCardapio } from '@/types/database';
 import CartaoItemCardapio from './CartaoItemCardapio';
 import BarraCarrinhoFlutuante from './BarraCarrinhoFlutuante';
+import { useCarrinho } from './ContextoCarrinho';
 
 interface ComponenteLojaHamburguerProps {
   restaurante: { id: string; nome: string };
@@ -12,6 +15,10 @@ interface ComponenteLojaHamburguerProps {
 }
 
 export default function ComponenteLojaHamburguer({ restaurante, produtos }: ComponenteLojaHamburguerProps) {
+  const params = useParams();
+  const slug = (params?.slug as string) || '';
+  const { totalItens } = useCarrinho();
+
   return (
     <div className="min-h-screen bg-[#F6F5F3] text-[#1A1A1A] antialiased pb-32 font-sans select-none">
       <div className="w-full bg-[#E52521] text-white">
@@ -24,11 +31,16 @@ export default function ComponenteLojaHamburguer({ restaurante, produtos }: Comp
             </button>
             <h1 className="font-black text-lg tracking-tight uppercase">{restaurante.nome}</h1>
           </div>
-          <div className="relative">
+          <Link href={`/${slug}/checkout`} className="relative" aria-label="Ver sacola">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" />
             </svg>
-          </div>
+            {totalItens > 0 && (
+              <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 bg-[#FFC72C] text-[#E52521] rounded-full text-[10px] font-black flex items-center justify-center leading-none">
+                {totalItens}
+              </span>
+            )}
+          </Link>
         </header>
       </div>
 
