@@ -2,6 +2,7 @@
 import { listarInsumosAdmin } from '@/actions/adminInsumos';
 import ListaInsumosAdmin from '@/components/ListaInsumosAdmin';
 import Link from 'next/link';
+import { APP_BRAND_NAME } from '@/utils/branding';
 
 export const revalidate = 0;
 
@@ -25,8 +26,8 @@ export default async function PainelInsumosAdmin() {
             </div>
             
             <div className="leading-tight">
-              <h2 className="font-black text-lg tracking-tight text-[#1A1A1A]">Acelera Burger</h2>
-              <span className="text-[11px] font-bold tracking-tight text-[#E16349] block mt-0.5">AceleraFood Tech</span>
+              <h2 className="font-black text-lg tracking-tight text-[#1A1A1A]">{APP_BRAND_NAME}</h2>
+              <span className="text-[11px] font-bold tracking-tight text-[#E16349] block mt-0.5">Painel Administrativo</span>
             </div>
           </div>
 

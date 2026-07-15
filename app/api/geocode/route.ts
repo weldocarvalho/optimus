@@ -1,5 +1,6 @@
 // app/api/geocode/route.ts
 import { NextResponse } from 'next/server';
+import { APP_BRAND_NAME } from '@/utils/branding';
 
 export async function GET(request: Request) {
   try {
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
     
     const resposta = await fetch(urlFinal, {
       headers: {
-        'User-Agent': 'AceleraFoodTechAdmin/1.0 (suporte@acelerafood.tech)',
+        'User-Agent': `${APP_BRAND_NAME}/1.0`,
         'Accept': 'application/json'
       }
     });

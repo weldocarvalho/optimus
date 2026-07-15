@@ -4,6 +4,7 @@
 import React from 'react';
 import { CardItemAcai } from './CardItemAcai';
 import BarraCarrinhoFlutuante from './BarraCarrinhoFlutuante';
+import { APP_BRAND_NAME } from '@/utils/branding';
 
 interface ProdutoCardapio {
   id: string;
@@ -38,7 +39,7 @@ export default function ComponenteLojaAcai({ restaurante, produtos }: Componente
                 {restaurante.nome}
               </h1>
               <span className="text-[10px] font-bold tracking-widest text-purple-300/90 block mt-0.5 uppercase">
-                AceleraFood Tech
+                {APP_BRAND_NAME}
               </span>
             </div>
           </div>

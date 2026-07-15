@@ -4,7 +4,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 
-// Tipagens unificadas do ecossistema AceleraFood Tech
+// Tipagens unificadas do ecossistema de gestão
 export interface AdicionalCustomizadoInput {
   nome: string;
   preco: number;
