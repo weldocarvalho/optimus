@@ -1,113 +1,109 @@
+// components/ecommerce/ContextoCarrinho.tsx
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ItemCardapio } from '@/types/database';
+import React, { createContext, useContext, useState } from 'react';
+
+export interface Complemento {
+  id: string;
+  item_cardapio_id: string;
+  nome: string;
+  preco_adicional: number;
+  disponivel: boolean;
+}
+
+export interface ItemCardapio {
+  id: string;
+  restaurante_id: string;
+  nome: string;
+  descricao: string | null;
+  preco_venda: number;
+  disponivel: boolean;
+  imagem_url: string | null;
+  complementos?: Complemento[];
+}
 
 export interface ItemCarrinho {
+  idUnico: string; // Chave composta calculada reativamente
   produto: ItemCardapio;
   quantidade: number;
+  adicionaisEscolhidos: Complemento[];
 }
 
 interface ContextoCarrinhoType {
   itens: ItemCarrinho[];
-  adicionarItem: (produto: ItemCardapio) => void;
-  removerItem: (produtoId: string) => void;
-  limparCarrinho: () => void;
-  totalItens: number;
+  adicionarItem: (produto: ItemCardapio, adicionais?: Complemento[]) => void;
+  removerItem: (idUnico: string) => void;
   valorTotal: number;
+  totalItens: number;
+  limparCarrinho: () => void;
 }
 
 const ContextoCarrinho = createContext<ContextoCarrinhoType | undefined>(undefined);
 
 export function ProvedorCarrinho({ children }: { children: React.ReactNode }) {
-  // Inicializa o estado vazio para evitar incompatibilidade com SSR
   const [itens, setItens] = useState<ItemCarrinho[]>([]);
-  const [carregado, setCarregado] = useState(false);
 
-  // Chave única para o armazenamento local
-  const LOCAL_STORAGE_KEY = 'acelera_food_carrinho';
+  const adicionarItem = (produto: ItemCardapio, adicionais: Complemento[] = []) => {
+    setItens((itensAtuais) => {
+      const adicionaisIds = adicionais.map(a => a.id).sort().join('-');
+      const idUnico = adicionaisIds ? `${produto.id}-${adicionaisIds}` : produto.id;
 
-  // 1. Carrega os dados salvos do localStorage assim que o componente monta no cliente
-  useEffect(() => {
-    try {
-      const dadosSalvos = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (dadosSalvos) {
-        setItens(JSON.parse(dadosSalvos));
-      }
-    } catch (error) {
-      console.error('Erro ao ler do localStorage:', error);
-    } finally {
-      setCarregado(true);
-    }
-  }, []);
+      const itemExistente = itensAtuais.find((item) => item.idUnico === idUnico);
 
-  // 2. Sincroniza o estado atualizado com o localStorage a cada mudança na sacola
-  useEffect(() => {
-    if (!carregado) return; // Bloqueia a execução antes do carregamento inicial
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(itens));
-    } catch (error) {
-      console.error('Erro ao salvar no localStorage:', error);
-    }
-  }, [itens, carregado]);
-
-  const adicionarItem = (produto: ItemCardapio) => {
-    setItens((prev) => {
-      const itemExistente = prev.find((i) => i.produto.id === produto.id);
       if (itemExistente) {
-        return prev.map((i) =>
-          i.produto.id === produto.id ? { ...i, quantidade: i.quantidade + 1 } : i
+        return itensAtuais.map((item) =>
+          item.idUnico === idUnico ? { ...item, quantidade: item.quantidade + 1 } : item
         );
       }
-      return [...prev, { produto, quantidade: 1 }];
+
+      const precoAdicionais = adicionais.reduce((acc, a) => acc + Number(a.preco_adicional), 0);
+      const produtoPrecoFinal = {
+        ...produto,
+        preco_venda: Number(produto.preco_venda) + precoAdicionais
+      };
+
+      return [
+        ...itensAtuais,
+        {
+          idUnico,
+          produto: produtoPrecoFinal,
+          quantidade: 1,
+          adicionaisEscolhidos: adicionais
+        }
+      ];
     });
   };
 
-  const removerItem = (produtoId: string) => {
-    setItens((prev) => {
-      const itemExistente = prev.find((i) => i.produto.id === produtoId);
-      if (!itemExistente) return prev;
-      if (itemExistente.quantidade === 1) {
-        return prev.filter((i) => i.produto.id !== produtoId);
+  const removerItem = (idUnico: string) => {
+    setItens((itensAtuais) => {
+      const itemExistente = itensAtuais.find((item) => item.idUnico === idUnico);
+
+      if (itemExistente && itemExistente.quantidade > 1) {
+        return itensAtuais.map((item) =>
+          item.idUnico === idUnico ? { ...item, quantidade: item.quantidade - 1 } : item
+        );
       }
-      return prev.map((i) =>
-        i.produto.id === produtoId ? { ...i, quantidade: i.quantidade - 1 } : i
-      );
+
+      return itensAtuais.filter((item) => item.idUnico !== idUnico);
     });
   };
 
-  const limparCarrinho = () => {
-    setItens([]);
-  };
+  const limparCarrinho = () => setItens([]);
 
+  const valorTotal = itens.reduce((acc, item) => acc + (item.produto.preco_venda * item.quantidade), 0);
   const totalItens = itens.reduce((acc, item) => acc + item.quantidade, 0);
-  const valorTotal = itens.reduce((acc, item) => acc + item.quantidade * Number(item.produto.preco_venda), 0);
-
-  // Evita oscilação de interface na tela (Layout Shift) durante a hidratação do Next.js
-  if (!carregado) {
-    return null; 
-  }
 
   return (
-    <ContextoCarrinho.Provider
-      value={{
-        itens,
-        adicionarItem,
-        removerItem,
-        limparCarrinho,
-        totalItens,
-        valorTotal,
-      }}
-    >
+    <ContextoCarrinho.Provider value={{ itens, adicionarItem, removerItem, valorTotal, totalItens, limparCarrinho }}>
       {children}
     </ContextoCarrinho.Provider>
   );
 }
 
 export function useCarrinho() {
-  const contexto = useContext(ContextoCarrinho);
-  if (!contexto) {
+  const context = useContext(ContextoCarrinho);
+  if (!context) {
     throw new Error('useCarrinho deve ser utilizado dentro de um ProvedorCarrinho');
   }
-  return contexto;
+  return context;
 }
