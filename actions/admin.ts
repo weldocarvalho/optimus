@@ -1,212 +1,246 @@
 // actions/admin.ts
+'use server'
 
-'use server';
+import { createClient } from '@/utils/supabase/server'
+import { revalidatePath } from 'next/cache'
 
-import { createClient } from '@/utils/supabase/server';
-import { ItemCardapio } from '@/types/database';
-
-export interface IngredienteDetalhado {
+// Tipagens unificadas do ecossistema AceleraFood Tech
+export interface AdicionalCustomizadoInput {
   nome: string;
-  quantidade: number;
-  unidade: string;
+  preco: number;
 }
 
-export interface ItemCardapioComCMV extends ItemCardapio {
-  custo_producao: number;
-  margem_lucro: number;
-  percentual_cmv: number;
-  ingredientes: IngredienteDetalhado[];
-}
-
-export interface InsumoVinculadoInput {
+export interface InsumoFichaInput {
   insumo_id: string;
   quantidade_necessaria: number;
 }
 
-/**
- * Função auxiliar interna para capturar o restaurante_id do gestor autenticado
- * usando a tabela de amarração baseada na sessão atual.
- */
-async function obterRestauranteIdLogado(): Promise<string> {
-  const supabase = await createClient();
-  
-  // Captura o usuário logado direto do JWT seguro do cookie
-  const { data: { user }, error: errUser } = await supabase.auth.getUser();
-  
-  if (errUser || !user) {
-    throw new Error('Usuário não autenticado no Centro de Comando.');
-  }
+export interface ItemCardapioComCMV {
+  id: string;
+  nome: string;
+  descricao: string;
+  preco_venda: number;
+  disponivel: boolean;
+  custo_producao: number;
+  percentual_cmv: number;
+  margem_lucro: number;
+  ingredientes: Array<{ nome: string; quantidade: number; unidade: string }>;
+}
 
-  // Busca a amarração do perfil administrativo
-  const { data: perfil, error: errPerfil } = await supabase
+// Apelido para garantir retrocompatibilidade com os imports de componentes
+export type AdicionalCustomizado = AdicionalCustomizadoInput;
+
+/**
+ * Cria um novo produto no cardápio injetando dinamicamente o restaurante_id do gestor logado,
+ * salvando sua ficha técnica e seus complementos dentro de uma transação simulada estável.
+ */
+export async function criarProdutoComComplementos(
+  nome: string,
+  descricao: string,
+  precoVenda: number,
+  fichaTecnica: InsumoFichaInput[],
+  complementos: AdicionalCustomizado[]
+) {
+  const supabase = await createClient()
+
+  try {
+    // 1. Recupera o usuário autenticado na sessão atual do servidor
+    const { data: { user }, error: erroAuth } = await supabase.auth.getUser()
+    if (erroAuth || !user) {
+      throw new Error('Usuário não autenticado ou sessão expirada.')
+    }
+
+    // 2. Busca o restaurante_id vinculado ao perfil administrativo deste usuário
+    const { data: perfilAdmin, error: erroPerfil } = await supabase
+      .from('perfis_admin')
+      .select('restaurante_id')
+      .eq('id', user.id)
+      .single()
+
+    if (erroPerfil || !perfilAdmin?.restaurante_id) {
+      console.error('Erro ao recuperar tenant do administrador:', erroPerfil)
+      throw new Error('Nenhum restaurante associado a este perfil de administrador.')
+    }
+
+    const restauranteId = perfilAdmin.restaurante_id
+
+    // 3. Insere o item de cardápio injetando o restauranteId descoberto
+    const { data: novoItem, error: erroItem } = await supabase
+      .from('itens_cardapio')
+      .insert({
+        restaurante_id: restauranteId, // <--- Aqui resolvemos o erro de constraint NOT NULL
+        nome,
+        descricao,
+        preco_venda: precoVenda,
+        disponivel: true
+      })
+      .select('id')
+      .single()
+
+    if (erroItem || !novoItem) {
+      console.error('Erro detalhado da tabela itens_cardapio:', erroItem)
+      throw new Error(`Falha crítica ao criar item de cardápio: ${erroItem?.message}`)
+    }
+
+    const itemId = novoItem.id
+
+    // 4. Insere os complementos vinculados ao produto se existirem na requisição
+    if (complementos && complementos.length > 0) {
+      const dadosComplementos = complementos.map(comp => ({
+        item_cardapio_id: itemId,
+        nome: comp.nome,
+        preco_adicional: comp.preco,
+        disponivel: true
+      }))
+
+      const { error: erroComplementos } = await supabase
+        .from('complementos_produto')
+        .insert(dadosComplementos)
+
+      if (erroComplementos) {
+        console.error('Erro ao inserir complementos do produto:', erroComplementos)
+        // Opcional: dependendo da sua regra de negócio, você pode deletar o item criado se os complementos falharem
+        throw new Error(`Produto criado, mas falhou ao salvar adicionais: ${erroComplementos.message}`)
+      }
+    }
+
+    // 5. Insere a ficha técnica de insumos (tabela composicao_produto) se preenchida
+    if (fichaTecnica && fichaTecnica.length > 0) {
+      const dadosComposicao = fichaTecnica.map(ficha => ({
+        item_cardapio_id: itemId,
+        insumo_id: ficha.insumo_id,
+        quantidade_necessaria: ficha.quantidade_necessaria
+      }))
+
+      const { error: erroComposicao } = await supabase
+        .from('composicao_produto')
+        .insert(dadosComposicao)
+
+      if (erroComposicao) {
+        console.error('Erro ao salvar ficha técnica:', erroComposicao)
+        throw new Error(`Produto e adicionais criados, mas falhou na ficha técnica: ${erroComposicao.message}`)
+      }
+    }
+
+    // Revalida o cache das páginas administrativas para atualizar as listagens instantaneamente
+    revalidatePath('/admin/produtos')
+    
+    return { success: true, itemId }
+
+  } catch (error: any) {
+    console.error('Erro ao criar produto com complementos:', error.message)
+    return { success: false, error: error.message }
+  }
+}
+
+
+export async function alternarDisponibilidadeProduto(id: string, statusAtual: boolean) {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('itens_cardapio')
+    .update({ disponivel: !statusAtual })
+    .eq('id', id)
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/admin/produtos')
+}
+
+export async function atualizarStatusEmLote(ids: string[], novoStatus: boolean) {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('itens_cardapio')
+    .update({ disponivel: novoStatus })
+    .in('id', ids)
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/admin/produtos')
+}
+
+/**
+ * RESTAURAÇÃO DA INTELIGÊNCIA FINANCEIRA:
+ * Busca todos os produtos vinculados ao restaurante logado e computa recursivamente
+ * o CMV em tempo real cruzando a tabela de composição com os custos unitários.
+ */
+export async function listarProdutosComCMV(): Promise<ItemCardapioComCMV[]> {
+  const supabase = await createClient()
+
+  // 1. Identifica de forma segura o restaurante associado ao perfil administrativo logado
+  const { data: perfil } = await supabase
     .from('perfis_admin')
     .select('restaurante_id')
-    .eq('id', user.id)
-    .single();
+    .single()
 
-  if (errPerfil || !perfil) {
-    throw new Error('Perfil administrativo ou restaurante não localizado.');
-  }
+  if (!perfil?.restaurante_id) return []
 
-  return perfil.restaurante_id;
-}
-
-export async function listarProdutosComCMV(): Promise<ItemCardapioComCMV[]> {
-  try {
-    const supabase = await createClient();
-    const restauranteId = await obterRestauranteIdLogado();
-    
-    const { data: produtos, error } = await supabase
-      .from('itens_cardapio')
-      .select(`
-        *,
-        composicao_produto (
-          quantidade_necessaria,
-          insumos (
-            nome,
-            unidade_medida,
-            custo_unitario
-          )
+  // 2. Query relacional aninhada agregando ficha técnica e custo unitário dos insumos de retaguarda
+  const { data: itens, error } = await supabase
+    .from('itens_cardapio')
+    .select(`
+      id,
+      nome,
+      descricao,
+      preco_venda,
+      disponivel,
+      composicao_produto (
+        quantidade_necessaria,
+        insumos (
+          nome,
+          custo_unitario,
+          unidade_medida
         )
-      `)
-      .eq('restaurante_id', restauranteId)
-      .order('created_at', { ascending: false });
+      )
+    `)
+    .eq('restaurante_id', perfil.restaurante_id)
 
-    if (error) {
-      console.error('Erro ao listar produtos com CMV:', error);
-      return [];
+  if (error || !itens) return []
+
+  // 3. Processamento aritmético sênior para dedução exata de margem e percentual do CMV do dia
+  return itens.map((item: any) => {
+    let custoProducao = 0;
+    const ingredientes: any[] = [];
+
+    if (item.composicao_produto) {
+      item.composicao_produto.forEach((comp: any) => {
+        if (comp.insumos) {
+          const unitario = Number(comp.insumos.custo_unitario || 0);
+          const necessaria = Number(comp.quantidade_necessaria || 0);
+          custoProducao += unitario * necessaria;
+
+          ingredientes.push({
+            nome: comp.insumos.nome,
+            quantidade_real: necessaria,
+            unidade: comp.insumos.unidade_medida
+          });
+        }
+      });
     }
 
-    return (produtos || []).map((item: any) => {
-      let custoProducao = 0;
-      const ingredientes: IngredienteDetalhado[] = [];
+    const precoVenda = Number(item.preco_venda || 0);
+    const percentualCmv = precoVenda > 0 ? (custoProducao / precoVenda) * 100 : 0;
+    const margemLucro = precoVenda - custoProducao;
 
-      if (item.composicao_produto) {
-        item.composicao_produto.forEach((comp: any) => {
-          const custoUnitario = comp.insumos?.custo_unitario || 0;
-          const qtd = Number(comp.quantidade_necessaria);
-          custoProducao += qtd * Number(custoUnitario);
-
-          if (comp.insumos) {
-            ingredientes.push({
-              nome: comp.insumos.nome,
-              quantidade: qtd,
-              unidade: comp.insumos.unidade_medida
-            });
-          }
-        });
-      }
-
-      const precoVenda = Number(item.preco_venda);
-      return {
-        ...item,
-        custo_producao: custoProducao,
-        margem_lucro: precoVenda - custoProducao,
-        percentual_cmv: precoVenda > 0 ? (custoProducao / precoVenda) * 100 : 0,
-        ingredientes
-      };
-    });
-  } catch (error) {
-    console.error('Erro na action listarProdutosComCMV:', error);
-    return [];
-  }
-}
-
-export async function atualizarStatusEmLote(ids: string[], disponivel: boolean) {
-  if (ids.length === 0) return { success: true };
-
-  try {
-    const supabase = await createClient();
-    
-    // O RLS configurado no banco garante que o usuário só altere itens do seu próprio restaurante_id
-    const { error } = await supabase
-      .from('itens_cardapio')
-      .update({ disponivel })
-      .in('id', ids);
-
-    if (error) {
-      console.error('Erro ao atualizar produtos em lote:', error);
-      return { success: false, error };
-    }
-
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
+    return {
+      id: item.id,
+      nome: item.nome,
+      descricao: item.descricao || '',
+      preco_venda: precoVenda,
+      disponivel: !!item.disponivel,
+      custo_producao: custoProducao,
+      percentual_cmv: percentualCmv,
+      margem_lucro: margemLucro,
+      ingredientes
+    };
+  });
 }
 
 export async function criarProdutoComFichaTecnica(
-  nome: string, 
-  descricao: string, 
-  precoVenda: number, 
-  insumosVinculados: InsumoVinculadoInput[]
+  nome: string,
+  descricao: string,
+  precoVenda: number,
+  fichaTecnica: any[]
 ) {
-  if (!nome || precoVenda <= 0) {
-    return { success: false, error: 'Nome e preço de venda são obrigatórios.' };
-  }
-
-  try {
-    const supabase = await createClient();
-    const restauranteId = await obterRestauranteIdLogado();
-    
-    // 1. Insere o item do cardápio herdando dinamicamente o ID correto da sessão
-    const { data: novoItem, error: errItem } = await supabase
-      .from('itens_cardapio')
-      .insert([{
-        restaurante_id: restauranteId,
-        nome,
-        descricao: descricao || null,
-        preco_venda: precoVenda,
-        disponivel: true
-      }])
-      .select()
-      .single();
-
-    if (errItem || !novoItem) {
-      console.error('Erro ao criar item do cardápio:', errItem);
-      return { success: false, error: 'Falha ao criar o produto.' };
-    }
-
-    // 2. Se o usuário vinculou insumos, insere as linhas na tabela de composição
-    if (insumosVinculados.length > 0) {
-      const linhasComposicao = insumosVinculados.map(ins => ({
-        item_cardapio_id: novoItem.id,
-        insumo_id: ins.insumo_id,
-        quantidade_necessaria: ins.quantidade_necessaria
-      }));
-
-      const { error: errComposicao } = await supabase
-        .from('composicao_produto')
-        .insert(linhasComposicao);
-
-      if (errComposicao) {
-        console.error('Erro ao salvar a ficha técnica:', errComposicao);
-        return { success: false, error: 'Produto criado, mas houve falha ao salvar a ficha técnica.' };
-      }
-    }
-
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-}
-
-export async function alternarDisponibilidadeProduto(id: string, statusAtual: boolean) {
-  try {
-    const supabase = await createClient();
-    
-    const { error } = await supabase
-      .from('itens_cardapio')
-      .update({ disponivel: !statusAtual })
-      .eq('id', id);
-
-    if (error) {
-      console.error('Erro ao atualizar status do produto:', error);
-      return { success: false, error };
-    }
-
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
+  const supabase = await createClient()
+  const { data: perfil } = await supabase.from('perfis_admin').select('restaurante_id').single()
+  if (!perfil?.restaurante_id) throw new Error("Restaurante do gestor não identificado")
+  return criarProdutoComComplementos(nome, descricao, precoVenda, perfil.restaurante_id, fichaTecnica, [])
 }

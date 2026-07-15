@@ -2,75 +2,153 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { ItemCardapioComCMV, atualizarStatusEmLote, criarProdutoComFichaTecnica, alternarDisponibilidadeProduto, InsumoVinculadoInput } from '@/actions/admin';
+import { 
+  ItemCardapioComCMV, 
+  atualizarStatusEmLote, 
+  alternarDisponibilidadeProduto,
+  criarProdutoComComplementos,
+  AdicionalCustomizadoInput,
+  InsumoFichaInput
+} from '@/actions/admin';
 import { Insumo } from '@/types/database';
 import { useRouter } from 'next/navigation';
 import BarraAcoesLote from './cardapio-admin/BarraAcoesLote';
 import CardProdutoAdmin from './cardapio-admin/CardProdutoAdmin';
 import ModalNovoProduto from './cardapio-admin/ModalNovoProduto';
 
-interface ListaProps {
+interface ListaProdutosProps {
   produtosIniciais: ItemCardapioComCMV[];
-  insumosDisponiveis: Insumo[]; // Nova propriedade recebida do servidor
+  insumosDisponiveis: Insumo[];
+  restauranteId: string;
 }
 
-export default function ListaProdutosAdmin({ produtosIniciais, insumosDisponiveis }: ListaProps) {
+/**
+ * Painel Gerencial do Gestor: Lista todos os hambúrgueres cadastrados,
+ * exibe o CMV reativo e dispara o modal configurado para novos adicionais livres.
+ */
+export default function ListaProdutosAdmin({ 
+  produtosIniciais, 
+  insumosDisponiveis,
+  restauranteId 
+}: ListaProdutosProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [selecionados, setSelecionados] = useState<string[]>([]);
   const [modalAberto, setModalAberto] = useState(false);
+  const [selecionados, setSelecionados] = useState<string[]>([]);
 
   const handleToggleSelect = (id: string) => {
-    setSelecionados(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    setSelecionados(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
   };
 
-  const handleSelectAll = () => {
-    setSelecionados(selecionados.length === produtosIniciais.length ? [] : produtosIniciais.map(p => p.id));
+  const handleSelecionarTodos = () => {
+    if (selecionados.length === produtosIniciais.length) {
+      setSelecionados([]);
+    } else {
+      setSelecionados(produtosIniciais.map(p => p.id));
+    }
   };
 
-  const handleAlterarStatusLote = (disponivel: boolean) => {
+  const handleToggleStatus = (id: string, statusAtual: boolean) => {
     startTransition(async () => {
-      if ((await atualizarStatusEmLote(selecionados, disponivel)).success) {
-        setSelecionados([]); router.refresh();
+      try {
+        await alternarDisponibilidadeProduto(id, statusAtual);
+        router.refresh();
+      } catch (err) {
+        console.error("Erro ao alterar status do produto:", err);
       }
     });
   };
 
-  const handleToggleStatusIndividual = (id: string, statusAtual: boolean) => {
+  const handleAlterarStatusEmLote = (novoStatus: boolean) => {
+    if (selecionados.length === 0) return;
     startTransition(async () => {
-      if ((await alternarDisponibilidadeProduto(id, statusAtual)).success) router.refresh();
+      try {
+        await atualizarStatusEmLote(selecionados, novoStatus);
+        setSelecionados([]);
+        router.refresh();
+      } catch (err) {
+        console.error("Erro na operação em lote:", err);
+      }
     });
   };
 
-  // Chama a nova função enviando a árvore de ingredientes mapeada
-  const handleCriarProduto = (nome: string, descricao: string, preco: number, insumos: InsumoVinculadoInput[]) => {
+  const handleSalvarNovoProduto = (
+    nome: string, 
+    descricao: string, 
+    preco: number, 
+    fichaTecnica: InsumoFichaInput[], 
+    complementos: AdicionalCustomizadoInput[]
+  ) => {
     startTransition(async () => {
-      if ((await criarProdutoComFichaTecnica(nome, descricao, preco, insumos)).success) {
-        setModalAberto(false); router.refresh();
+      try {
+        await criarProdutoComComplementos(
+          nome, 
+          descricao, 
+          preco, 
+          restauranteId, 
+          fichaTecnica, 
+          complementos
+        );
+        setModalAberto(false);
+        router.refresh();
+      } catch (err) {
+        console.error("Erro ao criar produto com complementos:", err);
       }
     });
   };
 
   return (
-    <main className="bg-white rounded-[32px] shadow-sm shadow-zinc-300/40 border border-transparent overflow-hidden flex flex-col w-full relative">
-      <div className="p-6 md:p-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#F3F3F3]">
-        <div>
-          <h1 className="text-lg font-extrabold tracking-tight text-[#1A1A1A]">Produtos & Inteligência Financeira</h1>
-          <p className="text-xs text-zinc-400 font-medium mt-0.5">Visão unificada de Ficha Técnica, CMV e Margem Real</p>
+    <div className="bg-white rounded-[24px] shadow-sm border border-zinc-200/40 overflow-hidden font-sans">
+      
+      {/* BARRA DE OPERAÇÕES EM LOTE */}
+      <BarraAcoesLote 
+        todosSelecionados={selecionados.length === produtosIniciais.length && produtosIniciais.length > 0}
+        onSelecionarTodos={handleSelecionarTodos}
+        qtdSelecionados={selecionados.length}
+        onAlterarStatus={handleAlterarStatusEmLote}
+        isPending={isPending}
+      />
+
+      {/* VITRINE ADMINISTRATIVA DE ITENS */}
+      <div className="p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest">Hambúrgueres Ativos</h3>
+          <button 
+            type="button"
+            onClick={() => setModalAberto(true)}
+            className="bg-[#E16349] hover:bg-[#c8523a] text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+          >
+            ✕ Novo Hambúrguer
+          </button>
         </div>
-        <button onClick={() => setModalAberto(true)} className="bg-[#E16349] text-white font-bold text-xs px-5 py-2.5 rounded-[16px] hover:bg-[#c8523a] active:scale-[0.97] transition-all shadow-sm">+ Adicionar Item</button>
+
+        <div className="divide-y divide-zinc-100 max-h-[50vh] overflow-y-auto pr-1">
+          {produtosIniciais.length === 0 ? (
+            <p className="text-xs text-zinc-400 text-center py-12 italic">Nenhum hambúrguer cadastrado no cardápio.</p>
+          ) : (
+            produtosIniciais.map((produto) => (
+              <CardProdutoAdmin 
+                key={produto.id}
+                produto={produto}
+                isSelecionado={selecionados.includes(produto.id)}
+                onToggleSelect={() => handleToggleSelect(produto.id)}
+                onToggleStatus={handleToggleStatus}
+              />
+            ))
+          )}
+        </div>
       </div>
 
-      <BarraAcoesLote todosSelecionados={produtosIniciais.length > 0 && selecionados.length === produtosIniciais.length} onSelecionarTodos={handleSelectAll} qtdSelecionados={selecionados.length} onAlterarStatus={handleAlterarStatusLote} isPending={isPending} />
-
-      <div className="p-4 md:p-6 space-y-3">
-        {produtosIniciais.map(p => (
-          <CardProdutoAdmin key={p.id} produto={p} isSelecionado={selecionados.includes(p.id)} onToggleSelect={() => handleToggleSelect(p.id)} onToggleStatus={handleToggleStatusIndividual} />
-        ))}
-      </div>
-
-      {/* Repassa a lista de insumos vinda do banco para o modal reativo */}
-      <ModalNovoProduto aberto={modalAberto} onFechar={() => setModalAberto(false)} onSalvar={handleCriarProduto} isPending={isPending} insumosDisponiveis={insumosDisponiveis} />
-    </main>
+      {/* PORTAL DO MODAL DE ENGENHARIA DE ADICIONAIS LIVRES */}
+      <ModalNovoProduto 
+        aberto={modalAberto}
+        onFechar={() => setModalAberto(false)}
+        onSalvar={handleSalvarNovoProduto}
+        isPending={isPending}
+        insumosDisponiveis={insumosDisponiveis}
+      />
+    </div>
   );
 }

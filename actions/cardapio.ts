@@ -1,55 +1,57 @@
 // actions/cardapio.ts
-'use server';
+'use server'
 
-import { createClient } from '@/utils/supabase/server';
-import { ItemCardapio, Restaurante } from '@/types/database';
+import { createClient } from '@/utils/supabase/server'
 
-interface DadosCardapio {
-  restaurante: Restaurante | null;
-  produtos: ItemCardapio[];
-}
+/**
+ * Busca os itens do cardápio de um restaurante específico pelo seu Slug,
+ * incluindo a relação de complementos cadastrados (tabela complementos_produto).
+ * 
+ * @param slug O slug identificador do restaurante na URL (ex: 'burger-house')
+ */
+export async function obterCardapioPorSlug(slug: string) {
+  const supabase = await createClient()
 
-export async function obterDadosCardapioPorSlug(slug: string): Promise<DadosCardapio> {
-  try {
-    // Inicializa o cliente do servidor assíncrono
-    const supabase = await createClient();
+  // 1. Busca primeiro o ID e nome do restaurante usando o slug da URL
+  const { data: restaurante, error: erroRestaurante } = await supabase
+    .from('restaurantes')
+    .select('id, nome, tipo')
+    .eq('slug', slug)
+    .single()
 
-    if (!slug) {
-      return { restaurante: null, produtos: [] };
-    }
+  if (erroRestaurante || !restaurante) {
+    console.error('Erro ao localizar restaurante pelo slug:', erroRestaurante)
+    return { restaurante: null, produtos: [] }
+  }
 
-    // 1. Busca o restaurante pelo slug único da URL pública (Ex: /acelera-acai)
-    // O banco usa um índice B-Tree otimizado aqui para buscas instantâneas
-    const { data: restaurante, error: errRestaurante } = await supabase
-      .from('restaurantes')
-      .select('*')
-      .eq('slug', slug)
-      .maybeSingle(); // Usamos maybeSingle para retornar nulo graciosamente se o slug não existir
+  // 2. Busca os itens de cardápio do restaurante com JOIN reativo na tabela complementos_produto
+  const { data: produtos, error: erroProdutos } = await supabase
+    .from('itens_cardapio')
+    .select(`
+      id,
+      nome,
+      descricao,
+      preco_venda,
+      imagem_url,
+      disponivel,
+      complementos_produto (
+        id,
+        nome,
+        preco_adicional,
+        disponivel
+      )
+    `)
+    .eq('restaurante_id', restaurante.id)
+    .eq('disponivel', true) // Garante que só exibe itens ativos na vitrine pública
+    .order('created_at', { ascending: true })
 
-    if (errRestaurante || !restaurante) {
-      console.error(`Restaurante não encontrado para o slug: ${slug}`, errRestaurante);
-      return { restaurante: null, produtos: [] };
-    }
+  if (erroProdutos) {
+    console.error('Erro ao buscar itens e complementos do cardápio:', erroProdutos)
+    return { restaurante, produtos: [] }
+  }
 
-    // 2. Busca apenas os produtos disponíveis que pertencem a este restaurante específico
-    const { data: produtos, error: errProdutos } = await supabase
-      .from('itens_cardapio')
-      .select('*')
-      .eq('restaurante_id', restaurante.id)
-      .eq('disponivel', true)
-      .order('nome', { ascending: true }); // Ordenação limpa para experiência do usuário no cardápio
-
-    if (errProdutos) {
-      console.error('Erro ao buscar produtos do restaurante:', errProdutos);
-      return { restaurante, produtos: [] };
-    }
-
-    return {
-      restaurante,
-      produtos: produtos || []
-    };
-  } catch (error) {
-    console.error(`Erro crítico na action obterDadosCardapioPorSlug para o slug [${slug}]:`, error);
-    return { restaurante: null, produtos: [] };
+  return {
+    restaurante,
+    produtos: produtos || []
   }
 }
