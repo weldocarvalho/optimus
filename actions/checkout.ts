@@ -22,6 +22,11 @@ interface DadosClienteInput {
   };
 }
 
+interface ItemCardapioPreco {
+  id: string;
+  preco_venda: number;
+}
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -29,30 +34,75 @@ function getErrorMessage(error: unknown): string {
   return 'Falha catastrófica no checkout.';
 }
 
+function formaPagamentoValida(formaPagamento: FormaPagamento): boolean {
+  return formaPagamento === 'PIX' || formaPagamento === 'DINHEIRO' || formaPagamento === 'CARTAO';
+}
+
 export async function processarPedidoCheckout(
   slug: string,
   formaPagamento: FormaPagamento,
   dadosCliente: DadosClienteInput,
-  itens: ItemPedidoInput[],
-  valorTotal: number
+  itens: ItemPedidoInput[]
 ) {
   try {
     const supabase = await createClient();
+    const slugNormalizado = slug.trim();
 
-    if (!slug || itens.length === 0) {
+    if (!slugNormalizado || itens.length === 0) {
       return { success: false, error: 'Dados do checkout incompletos.' };
+    }
+    if (!formaPagamentoValida(formaPagamento)) {
+      return { success: false, error: 'Forma de pagamento inválida.' };
+    }
+
+    if (!dadosCliente.nome?.trim() || !dadosCliente.telefone?.trim()) {
+      return { success: false, error: 'Dados do cliente inválidos.' };
+    }
+
+    const itensValidos = itens.every((item) =>
+      typeof item.item_cardapio_id === 'string' &&
+      item.item_cardapio_id.length > 0 &&
+      Number.isInteger(item.quantidade) &&
+      item.quantidade > 0
+    );
+
+    if (!itensValidos) {
+      return { success: false, error: 'Itens do pedido inválidos.' };
     }
 
     // 1. Descobre o restaurante através do slug da URL
     const { data: restaurante, error: errRestaurante } = await supabase
       .from('restaurantes')
       .select('id')
-      .eq('slug', slug)
+      .eq('slug', slugNormalizado)
       .maybeSingle();
 
     if (errRestaurante || !restaurante) {
       return { success: false, error: 'Restaurante inválido ou indisponível.' };
     }
+
+    const itemIds = itens.map((item) => item.item_cardapio_id);
+    const { data: itensCardapio, error: errItensCardapio } = await supabase
+      .from('itens_cardapio')
+      .select('id, preco_venda')
+      .eq('restaurante_id', restaurante.id)
+      .in('id', itemIds);
+
+    if (errItensCardapio || !itensCardapio || itensCardapio.length !== itemIds.length) {
+      return { success: false, error: 'Itens inválidos para este restaurante.' };
+    }
+
+    const precoPorItem = new Map(
+      (itensCardapio as ItemCardapioPreco[]).map((item) => [item.id, Number(item.preco_venda)])
+    );
+
+    const valorTotalCalculado = itens.reduce((acc, item) => {
+      const preco = precoPorItem.get(item.item_cardapio_id);
+      if (!preco) {
+        return acc;
+      }
+      return acc + preco * item.quantidade;
+    }, 0);
 
     // 2. Cria o registro mestre do pedido (Status PENDENTE)
     const { data: novoPedido, error: errPedido } = await supabase
@@ -60,7 +110,7 @@ export async function processarPedidoCheckout(
       .insert([{
         restaurante_id: restaurante.id,
         status: 'PENDENTE',
-        valor_total: valorTotal,
+        valor_total: Math.round(valorTotalCalculado * 100) / 100,
         forma_pagamento: formaPagamento,
         dados_cliente: dadosCliente
       }])
@@ -77,7 +127,7 @@ export async function processarPedidoCheckout(
       pedido_id: novoPedido.id,
       item_cardapio_id: item.item_cardapio_id,
       quantidade: item.quantidade,
-      preco_unitario: item.preco_unitario
+      preco_unitario: precoPorItem.get(item.item_cardapio_id) ?? 0
     }));
 
     const { error: errItens } = await supabase
@@ -90,13 +140,16 @@ export async function processarPedidoCheckout(
     }
 
     // 4. MÁGICA DO ESTOQUE DEDUTIVO: Puxa todas as receitas necessárias em lote (Fim do N+1)
-    const itemIds = itens.map(i => i.item_cardapio_id);
     const { data: composicoes, error: errCompo } = await supabase
       .from('composicao_produto')
       .select('item_cardapio_id, insumo_id, quantidade_necessaria')
       .in('item_cardapio_id', itemIds);
 
-    if (!errCompo && composicoes) {
+    if (errCompo) {
+      throw new Error(`Falha ao carregar composição dos produtos: ${errCompo.message}`);
+    }
+
+    if (composicoes) {
       // Mapeia os inputs de itens para busca rápida em O(1)
       const quantidadePorItem = new Map(itens.map(i => [i.item_cardapio_id, i.quantidade]));
 
@@ -106,10 +159,13 @@ export async function processarPedidoCheckout(
         
         if (quantidadeTotalDeduzir > 0) {
           // Executa a subtração atômica direta via Procedure RPC armazenada no banco
-          await supabase.rpc('deduzir_estoque_insumo', {
+          const { error: errDeduzir } = await supabase.rpc('deduzir_estoque_insumo', {
             p_insumo_id: comp.insumo_id,
             p_quantidade: quantidadeTotalDeduzir
           });
+          if (errDeduzir) {
+            throw new Error(`Falha ao deduzir estoque: ${errDeduzir.message}`);
+          }
         }
       }
     }
@@ -118,10 +174,13 @@ export async function processarPedidoCheckout(
     const hoje = new Date().toISOString().split('T')[0];
     
     // Incremento atômico de compras concluídas chamando a função nativa RPC correspondente
-    await supabase.rpc('incrementar_compras_funil', {
+    const { error: errFunil } = await supabase.rpc('incrementar_compras_funil', {
       p_restaurante_id: restaurante.id,
       p_data: hoje
     });
+    if (errFunil) {
+      throw new Error(`Falha ao atualizar métricas de funil: ${errFunil.message}`);
+    }
 
     return { success: true, pedidoId: novoPedido.id };
   } catch (error: unknown) {
