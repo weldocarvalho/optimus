@@ -14,13 +14,20 @@ interface ItemCliente {
 interface DadosCliente {
   nome: string;
   telefone: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface RequestBody {
   slug: string;
   itens: ItemCliente[];
   dadosCliente: DadosCliente;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'Falha no servidor de checkout.';
 }
 
 export async function POST(request: Request) {
@@ -100,8 +107,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ url: session.url });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erro crítico na rota de checkout Stripe:', error);
-    return NextResponse.json({ error: error.message || 'Falha no servidor de checkout.' }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

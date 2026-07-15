@@ -1,11 +1,12 @@
 // components/cardapio-admin/ModalNovoProduto.tsx (Parte 1 de 2)
 'use client'
 
-import React, { useState, useTransition, useEffect } from 'react'
+import React, { useState, useTransition } from 'react'
 import { criarProdutoAdmin } from '@/actions/cardapio'
 import { createPortal } from 'react-dom'
 import { Insumo } from '@/types/database'
 import { AbaDadosBasicos, AbaFichaTecnica, AbaAdicionaisOpcionais } from './AbasFormularioProduto'
+import { useRouter } from 'next/navigation'
 
 interface ModalNovoProdutoProps {
   aberto: boolean
@@ -14,8 +15,8 @@ interface ModalNovoProdutoProps {
 }
 
 export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis }: ModalNovoProdutoProps) {
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [mounted, setMounted] = useState(false)
   const [abaAtiva, setAbaAtiva] = useState<'DADOS' | 'FICHA' | 'ADICIONAIS'>('DADOS')
 
   // --- Estados do Formulário ---
@@ -29,12 +30,7 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
   const [novoAdicionalNome, setNovoAdicionalNome] = useState('')
   const [novoAdicionalPreco, setNovoAdicionalPreco] = useState('')
 
-  useEffect(() => {
-    setMounted(true)
-    return () => setMounted(false)
-  }, [])
-
-  if (!aberto || !mounted) return null
+  if (!aberto || typeof document === 'undefined') return null
 
   const handleFichaChange = (id: string, valor: string) => {
     setQuantidadesFicha(prev => ({ ...prev, [id]: valor }))
@@ -77,6 +73,7 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
         setAdicionais([])
         setAbaAtiva('DADOS')
         onFechar()
+        router.refresh()
       } else {
         alert(`Erro de Integração: ${resultado.error}`)
       }

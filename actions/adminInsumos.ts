@@ -4,6 +4,13 @@
 import { createClient } from '@/utils/supabase/server';
 import { Insumo } from '@/types/database';
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'Erro desconhecido.';
+}
+
 /**
  * Função auxiliar interna para capturar o restaurante_id do gestor autenticado
  * usando a tabela de amarração baseada na sessão atual do cookie.
@@ -89,8 +96,8 @@ export async function criarInsumoAdmin(
     }
 
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return { success: false, error: getErrorMessage(error) };
   }
 }
 
@@ -113,8 +120,8 @@ export async function excluirInsumosEmLote(ids: string[]) {
     }
 
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return { success: false, error: getErrorMessage(error) };
   }
 }
 
@@ -146,7 +153,7 @@ export async function atualizarCustoInsumoAdmin(
     }
 
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return { success: false, error: getErrorMessage(error) };
   }
 }

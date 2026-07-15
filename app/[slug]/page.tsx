@@ -2,13 +2,31 @@
 import { notFound } from 'next/navigation';
 import { obterCardapioPorSlug } from '@/actions/cardapio';
 import ComponenteLojaBurger from '@/components/ecommerce/ComponenteLojaBurger';
-import ComponenteLojaAcai from '@/components/ecommerce/ComponenteLojaAcai';
 
 
 interface PaginaCardapioProps {
   params: Promise<{
     slug: string;
   }>;
+}
+
+interface ComplementoProdutoPagina {
+  id: string;
+  nome: string;
+  preco_adicional: number | string;
+  disponivel: boolean;
+}
+
+interface ProdutoPagina {
+  id: string;
+  restaurante_id: string;
+  nome: string;
+  descricao: string | null;
+  preco_venda: number | string;
+  imagem_url: string | null;
+  disponivel: boolean;
+  created_at: string;
+  complementos_produto: ComplementoProdutoPagina[] | null;
 }
 
 export const revalidate = 0; // Desativa cache para garantir preços e adicionais atualizados em tempo real
@@ -26,13 +44,16 @@ export default async function PaginaCardapioPublico({ params }: PaginaCardapioPr
   }
 
   // Normaliza os dados tipados para a renderização limpa do componente de vitrine
-  const produtosNormalizados = produtos.map((p) => ({
+  const produtosNormalizados = (produtos as ProdutoPagina[]).map((p) => ({
     id: p.id,
+    restaurante_id: p.restaurante_id,
     nome: p.nome,
-    descricao: p.descricao,
+    descricao: p.descricao ?? '',
     preco_venda: Number(p.preco_venda),
-    imagem_url: p.imagem_url,
-    complementos_produto: (p.complementos_produto || []).map((c: any) => ({
+    imagem_url: p.imagem_url ?? '',
+    disponivel: p.disponivel,
+    created_at: p.created_at,
+    complementos_produto: (p.complementos_produto || []).map((c) => ({
       id: c.id,
       nome: c.nome,
       preco_adicional: Number(c.preco_adicional),
@@ -45,8 +66,7 @@ export default async function PaginaCardapioPublico({ params }: PaginaCardapioPr
       <ComponenteLojaBurger 
         restaurante={{
           id: restaurante.id,
-          nome: restaurante.nome,
-          tipo: restaurante.tipo
+          nome: restaurante.nome
         }} 
         produtos={produtosNormalizados} 
       />

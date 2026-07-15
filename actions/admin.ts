@@ -15,6 +15,24 @@ export interface InsumoFichaInput {
   quantidade_necessaria: number;
 }
 
+interface ProdutoComposicao {
+  quantidade_necessaria: number | null;
+  insumos: Array<{
+    nome: string;
+    custo_unitario: number | null;
+    unidade_medida: string;
+  }> | null;
+}
+
+interface ItemCardapioBruto {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  preco_venda: number | null;
+  disponivel: boolean | null;
+  composicao_produto: ProdutoComposicao[] | null;
+}
+
 export interface ItemCardapioComCMV {
   id: string;
   nome: string;
@@ -29,6 +47,13 @@ export interface ItemCardapioComCMV {
 
 // Apelido para garantir retrocompatibilidade com os imports de componentes
 export type AdicionalCustomizado = AdicionalCustomizadoInput;
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'Erro desconhecido.';
+}
 
 /**
  * Cria um novo produto no cardápio injetando dinamicamente o restaurante_id do gestor logado,
@@ -127,9 +152,10 @@ export async function criarProdutoComComplementos(
     
     return { success: true, itemId }
 
-  } catch (error: any) {
-    console.error('Erro ao criar produto com complementos:', error.message)
-    return { success: false, error: error.message }
+  } catch (error: unknown) {
+    const message = getErrorMessage(error)
+    console.error('Erro ao criar produto com complementos:', message)
+    return { success: false, error: message }
   }
 }
 
@@ -195,21 +221,22 @@ export async function listarProdutosComCMV(): Promise<ItemCardapioComCMV[]> {
   if (error || !itens) return []
 
   // 3. Processamento aritmético sênior para dedução exata de margem e percentual do CMV do dia
-  return itens.map((item: any) => {
+  return (itens as unknown as ItemCardapioBruto[]).map((item) => {
     let custoProducao = 0;
-    const ingredientes: any[] = [];
+    const ingredientes: ItemCardapioComCMV['ingredientes'] = [];
 
     if (item.composicao_produto) {
-      item.composicao_produto.forEach((comp: any) => {
-        if (comp.insumos) {
-          const unitario = Number(comp.insumos.custo_unitario || 0);
+      item.composicao_produto.forEach((comp) => {
+        const insumo = comp.insumos?.[0];
+        if (insumo) {
+          const unitario = Number(insumo.custo_unitario || 0);
           const necessaria = Number(comp.quantidade_necessaria || 0);
           custoProducao += unitario * necessaria;
 
           ingredientes.push({
-            nome: comp.insumos.nome,
-            quantidade_real: necessaria,
-            unidade: comp.insumos.unidade_medida
+            nome: insumo.nome,
+            quantidade: necessaria,
+            unidade: insumo.unidade_medida
           });
         }
       });
@@ -237,10 +264,7 @@ export async function criarProdutoComFichaTecnica(
   nome: string,
   descricao: string,
   precoVenda: number,
-  fichaTecnica: any[]
+  fichaTecnica: InsumoFichaInput[]
 ) {
-  const supabase = await createClient()
-  const { data: perfil } = await supabase.from('perfis_admin').select('restaurante_id').single()
-  if (!perfil?.restaurante_id) throw new Error("Restaurante do gestor não identificado")
-  return criarProdutoComComplementos(nome, descricao, precoVenda, perfil.restaurante_id, fichaTecnica, [])
+  return criarProdutoComComplementos(nome, descricao, precoVenda, fichaTecnica, [])
 }

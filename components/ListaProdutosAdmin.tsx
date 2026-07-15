@@ -5,10 +5,7 @@ import { useState, useTransition } from 'react';
 import { 
   ItemCardapioComCMV, 
   atualizarStatusEmLote, 
-  alternarDisponibilidadeProduto,
-  criarProdutoComComplementos,
-  AdicionalCustomizadoInput,
-  InsumoFichaInput
+  alternarDisponibilidadeProduto
 } from '@/actions/admin';
 import { Insumo } from '@/types/database';
 import { useRouter } from 'next/navigation';
@@ -19,7 +16,6 @@ import ModalNovoProduto from './cardapio-admin/ModalNovoProduto';
 interface ListaProdutosProps {
   produtosIniciais: ItemCardapioComCMV[];
   insumosDisponiveis: Insumo[];
-  restauranteId: string;
 }
 
 /**
@@ -28,8 +24,7 @@ interface ListaProdutosProps {
  */
 export default function ListaProdutosAdmin({ 
   produtosIniciais, 
-  insumosDisponiveis,
-  restauranteId 
+  insumosDisponiveis
 }: ListaProdutosProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -70,31 +65,6 @@ export default function ListaProdutosAdmin({
         router.refresh();
       } catch (err) {
         console.error("Erro na operação em lote:", err);
-      }
-    });
-  };
-
-  const handleSalvarNovoProduto = (
-    nome: string, 
-    descricao: string, 
-    preco: number, 
-    fichaTecnica: InsumoFichaInput[], 
-    complementos: AdicionalCustomizadoInput[]
-  ) => {
-    startTransition(async () => {
-      try {
-        await criarProdutoComComplementos(
-          nome, 
-          descricao, 
-          preco, 
-          restauranteId, 
-          fichaTecnica, 
-          complementos
-        );
-        setModalAberto(false);
-        router.refresh();
-      } catch (err) {
-        console.error("Erro ao criar produto com complementos:", err);
       }
     });
   };
@@ -145,8 +115,6 @@ export default function ListaProdutosAdmin({
       <ModalNovoProduto 
         aberto={modalAberto}
         onFechar={() => setModalAberto(false)}
-        onSalvar={handleSalvarNovoProduto}
-        isPending={isPending}
         insumosDisponiveis={insumosDisponiveis}
       />
     </div>

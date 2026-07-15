@@ -1,7 +1,7 @@
 // components/insumos-admin/ModalEditarInsumo.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import type { FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Insumo } from '@/types/database';
 
@@ -13,26 +13,16 @@ interface EditarProps {
 }
 
 export default function ModalEditarInsumo({ insumo, onFechar, onSalvar, isPending }: EditarProps) {
-  const [custo, setCusto] = useState('');
-  const [estoque, setEstoque] = useState('');
-  const [minimo, setMinimo] = useState('');
-  const [mounted, setMounted] = useState(false);
+  if (!insumo || typeof document === 'undefined') return null;
 
-  useEffect(() => {
-    setMounted(true);
-    if (insumo) {
-      setCusto(insumo.custo_unitario.toString());
-      setEstoque(insumo.estoque_atual.toString());
-      setMinimo(insumo.estoque_minimo.toString());
-    }
-    return () => setMounted(false);
-  }, [insumo]);
-
-  if (!insumo || !mounted) return null;
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    onSalvar(insumo.id, parseFloat(custo), parseFloat(estoque), parseFloat(minimo));
+    const formData = new FormData(e.currentTarget);
+    const custo = Number(formData.get('custo'));
+    const estoque = Number(formData.get('estoque'));
+    const minimo = Number(formData.get('minimo'));
+
+    onSalvar(insumo.id, custo, estoque, minimo);
   };
 
   return createPortal(
@@ -47,20 +37,20 @@ export default function ModalEditarInsumo({ insumo, onFechar, onSalvar, isPendin
           <button type="button" onClick={onFechar} className="w-6 h-6 bg-[#F3F3F3] hover:bg-zinc-200 text-zinc-500 rounded-full flex items-center justify-center text-[10px] font-bold">✕</button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form key={insumo.id} onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="space-y-1">
             <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Novo Custo Unitário (R$ por {insumo.unidade_medida})</label>
-            <input type="number" step="0.0001" required value={custo} onChange={(e) => setCusto(e.target.value)} className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349] focus:ring-1 focus:ring-[#E16349]" />
+            <input name="custo" type="number" step="0.0001" required defaultValue={insumo.custo_unitario} className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349] focus:ring-1 focus:ring-[#E16349]" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Estoque Atual</label>
-              <input type="number" step="0.01" required value={estoque} onChange={(e) => setEstoque(e.target.value)} className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349]" />
+              <input name="estoque" type="number" step="0.01" required defaultValue={insumo.estoque_atual} className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349]" />
             </div>
             <div className="space-y-1">
               <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Alerta Mínimo</label>
-              <input type="number" step="0.01" required value={minimo} onChange={(e) => setMinimo(e.target.value)} className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349]" />
+              <input name="minimo" type="number" step="0.01" required defaultValue={insumo.estoque_minimo} className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349]" />
             </div>
           </div>
 

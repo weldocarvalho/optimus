@@ -13,6 +13,13 @@ interface DadosNovoProduto {
   adicionais: Array<{ nome: string; preco: number }>
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  }
+  return 'Erro desconhecido no servidor.'
+}
+
 /**
  * Cadastra um novo item de cardápio no Supabase associando-o automaticamente ao restaurante
  * do gestor autenticado, salvando de forma atômica sua ficha técnica e adicionais customizados,
@@ -105,9 +112,10 @@ export async function criarProdutoAdmin(dados: DadosNovoProduto) {
     revalidatePath(`/${restaurante.slug}`)
 
     return { success: true }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = getErrorMessage(error)
     console.error('[SERVER ACTION ERROR] Falha ao registrar produto:', error)
-    return { success: false, error: error.message || 'Erro desconhecido no servidor.' }
+    return { success: false, error: message }
   }
 }
 
@@ -137,11 +145,13 @@ export async function obterCardapioPorSlug(slug: string) {
     .from('itens_cardapio')
     .select(`
       id,
+      restaurante_id,
       nome,
       descricao,
       preco_venda,
       imagem_url,
       disponivel,
+      created_at,
       complementos_produto (
         id,
         nome,

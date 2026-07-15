@@ -79,3 +79,5 @@ export interface ComplementoProduto {
   disponivel: boolean;
   created_at: string;
 }
+
+export type FormaPagamento = 'PIX' | 'DINHEIRO' | 'CARTAO';

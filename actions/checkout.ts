@@ -22,6 +22,13 @@ interface DadosClienteInput {
   };
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'Falha catastrófica no checkout.';
+}
+
 export async function processarPedidoCheckout(
   slug: string,
   formaPagamento: FormaPagamento,
@@ -117,8 +124,8 @@ export async function processarPedidoCheckout(
     });
 
     return { success: true, pedidoId: novoPedido.id };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erro crítico durante fluxo de processarPedidoCheckout:', error);
-    return { success: false, error: error.message || 'Falha catastrófica no checkout.' };
+    return { success: false, error: getErrorMessage(error) };
   }
 }

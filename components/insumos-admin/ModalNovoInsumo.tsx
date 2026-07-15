@@ -10,12 +10,20 @@ interface ModalProps {
   isPending: boolean;
 }
 
+type UnidadeMedida = 'g' | 'ml' | 'un';
+
 export default function ModalNovoInsumo({ aberto, onFechar, onSalvar, isPending }: ModalProps) {
   const [nome, setNome] = useState('');
-  const [unidade, setUnidade] = useState<'g' | 'ml' | 'un'>('un');
+  const [unidade, setUnidade] = useState<UnidadeMedida>('un');
   const [custo, setCusto] = useState('');
   const [estoqueAtual, setEstoqueAtual] = useState('');
   const [estoqueMinimo, setEstoqueMinimo] = useState('');
+
+  const handleUnidadeChange = (value: string) => {
+    if (value === 'g' || value === 'ml' || value === 'un') {
+      setUnidade(value);
+    }
+  };
 
   if (!aberto) return null;
 
@@ -52,7 +60,7 @@ export default function ModalNovoInsumo({ aberto, onFechar, onSalvar, isPending 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Unidade de Medida</label>
-              <select value={unidade} onChange={(e) => setUnidade(e.target.value as any)} className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349] focus:ring-1 focus:ring-[#E16349] cursor-pointer">
+              <select value={unidade} onChange={(e) => handleUnidadeChange(e.target.value)} className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349] focus:ring-1 focus:ring-[#E16349] cursor-pointer">
                 <option value="un">Unidade (un)</option>
                 <option value="g">Grama (g)</option>
                 <option value="ml">Mililitro (ml)</option>

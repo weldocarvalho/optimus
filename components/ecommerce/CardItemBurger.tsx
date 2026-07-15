@@ -61,7 +61,11 @@ export function CardItemBurger({ produto }: CardItemBurgerProps) {
       disponivel: true,
       imagem_url: produto.imagem_url || '',
       created_at: new Date().toISOString(),
-      adicionais_selecionados: adicionaisEscolhidos 
+      adicionais_selecionados: adicionaisEscolhidos.map((adicional) => ({
+        id: adicional.id,
+        nome: adicional.nome,
+        preco: Number(adicional.preco_adicional)
+      }))
     };
 
     adicionarItem(produtoNormalizado);

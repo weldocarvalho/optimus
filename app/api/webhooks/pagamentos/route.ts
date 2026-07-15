@@ -11,6 +11,13 @@ interface ItemMetadado {
   quantidade: number;
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'Erro interno desconhecido.';
+}
+
 export async function POST(request: Request) {
   const body = await request.text();
   const sig = request.headers.get('stripe-signature');
@@ -22,9 +29,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Assinatura ou Secret faltando.' }, { status: 400 });
     }
     event = stripe.webhooks.constructEvent(body, sig, endpointSecret);
-  } catch (err: any) {
-    console.error(`❌ Falha na validação do Webhook Stripe: ${err.message}`);
-    return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
+  } catch (err: unknown) {
+    const message = getErrorMessage(err);
+    console.error(`❌ Falha na validação do Webhook Stripe: ${message}`);
+    return NextResponse.json({ error: `Webhook Error: ${message}` }, { status: 400 });
   }
 
   // INTERCEPTA O EVENTO DE SUCESSO DE PAGAMENTO
@@ -155,9 +163,10 @@ export async function POST(request: Request) {
 
       console.log(`✅ Pedido ${novoPedido.id} processado e conciliado com absoluto sucesso via Webhook Stripe!`);
 
-    } catch (dbError: any) {
+    } catch (dbError: unknown) {
+      const message = getErrorMessage(dbError);
       console.error('❌ Erro de processamento interno no banco do Webhook:', dbError);
-      return NextResponse.json({ error: dbError.message || 'Database processing failed' }, { status: 500 });
+      return NextResponse.json({ error: message }, { status: 500 });
     }
   }
 

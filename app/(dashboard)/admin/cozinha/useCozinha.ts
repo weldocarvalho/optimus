@@ -1,7 +1,7 @@
 // app/(dashboard)/admin/cozinha/useCozinha.ts
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
 export interface ItemPedidoDetalhado {
@@ -24,8 +24,40 @@ export interface PedidoCozinha {
   itens_pedido: ItemPedidoDetalhado[];
 }
 
+interface ItemPedidoSelecionado {
+  id: string;
+  quantidade: number;
+  itens_cardapio: Array<{
+    nome: string;
+  }> | null;
+}
+
+interface PedidoSelecionado {
+  id: string;
+  status: PedidoCozinha['status'];
+  valor_total: number;
+  forma_pagamento: string;
+  dados_cliente: PedidoCozinha['dados_cliente'];
+  created_at: string;
+  itens_pedido: ItemPedidoSelecionado[] | null;
+}
+
+interface PedidoRealtime {
+  id: string;
+  restaurante_id: string;
+  status: PedidoCozinha['status'];
+  valor_total: number;
+  forma_pagamento: string;
+  dados_cliente: PedidoCozinha['dados_cliente'];
+  created_at: string;
+}
+
+type WindowWithWebkitAudio = Window & {
+  webkitAudioContext?: typeof AudioContext;
+};
+
 export function useCozinha() {
-  const supabase = createClient(); // Cliente do navegador sem await para escutar canais Realtime
+  const supabase = useMemo(() => createClient(), []);
   
   const [pedidos, setPedidos] = useState<PedidoCozinha[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,9 +65,15 @@ export function useCozinha() {
   const [restauranteId, setRestauranteId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const dispararAlertaSonoro = () => {
+  const dispararAlertaSonoro = useCallback(() => {
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const webkitWindow = window as WindowWithWebkitAudio;
+      const AudioContextCtor = window.AudioContext || webkitWindow.webkitAudioContext;
+      if (!AudioContextCtor) {
+        return;
+      }
+
+      const audioCtx = new AudioContextCtor();
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
       oscillator.type = 'sine';
@@ -48,24 +86,24 @@ export function useCozinha() {
     } catch (err) {
       console.error('Falha ao emitir áudio nativo:', err);
     }
-  };
+  }, []);
 
-  const buscarItensDoPedido = async (pedidoId: string) => {
+  const buscarItensDoPedido = useCallback(async (pedidoId: string): Promise<ItemPedidoDetalhado[]> => {
     const { data: itensBuscados } = await supabase
       .from('itens_pedido')
       .select('id, quantidade, itens_cardapio ( nome )')
       .eq('pedido_id', pedidoId);
 
-    const itensFormatados = (itensBuscados || []).map((i: any) => ({
+    const itensFormatados = ((itensBuscados || []) as unknown as ItemPedidoSelecionado[]).map((i) => ({
       id: i.id,
       quantidade: i.quantidade,
-      item_cardapio: { nome: i.itens_cardapio?.nome || 'Item Desconhecido' }
+      item_cardapio: { nome: i.itens_cardapio?.[0]?.nome || 'Item Desconhecido' }
     }));
 
     return itensFormatados;
-  };
+  }, [supabase]);
 
-  const buscarPedidosAtivosDoBanco = async (idDoRestaurante: string): Promise<PedidoCozinha[]> => {
+  const buscarPedidosAtivosDoBanco = useCallback(async (idDoRestaurante: string): Promise<PedidoCozinha[]> => {
     const { data: listaPedidos } = await supabase
       .from('pedidos')
       .select(`
@@ -76,20 +114,20 @@ export function useCozinha() {
       .in('status', ['PENDENTE', 'PAGO', 'PREPARANDO', 'PRONTO'])
       .order('created_at', { ascending: true });
 
-    return (listaPedidos || []).map((p: any) => ({
+    return ((listaPedidos || []) as unknown as PedidoSelecionado[]).map((p) => ({
       id: p.id,
       status: p.status,
       valor_total: p.valor_total,
       forma_pagamento: p.forma_pagamento,
       dados_cliente: p.dados_cliente,
       created_at: p.created_at,
-      itens_pedido: (p.itens_pedido || []).map((i: any) => ({
+      itens_pedido: (p.itens_pedido || []).map((i) => ({
         id: i.id,
         quantidade: i.quantidade,
-        item_cardapio: { nome: i.itens_cardapio?.nome || 'Item Desconhecido' }
+        item_cardapio: { nome: i.itens_cardapio?.[0]?.nome || 'Item Desconhecido' }
       }))
-    })) as PedidoCozinha[];
-  };
+    }));
+  }, [supabase]);
 
   // Carregamento de Inicialização Seguro baseado no usuário autenticado
   useEffect(() => {
@@ -118,7 +156,7 @@ export function useCozinha() {
       }
     }
     carregarDadosIniciais();
-  }, []);
+  }, [buscarPedidosAtivosDoBanco, supabase]);
 
   // Escuta em Tempo Real (Realtime WebSockets) protegida por ID de inquilino
   useEffect(() => {
@@ -128,11 +166,13 @@ export function useCozinha() {
       .channel(`cozinha_realtime_${restauranteId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, async (payload) => {
         const { eventType, new: novoRegistroRaw } = payload;
-        const novoRegistro = novoRegistroRaw as any;
+        const novoRegistro = novoRegistroRaw as Partial<PedidoRealtime> | null;
 
-        if (!novoRegistro || novoRegistro.restaurante_id !== restauranteId) return;
+        if (!novoRegistro?.id || !novoRegistro.restaurante_id || novoRegistro.restaurante_id !== restauranteId) return;
+        if (!novoRegistro.status) return;
+        const statusAtual = novoRegistro.status;
 
-        const adicionarPedidoNaFila = async (registro: any) => {
+        const adicionarPedidoNaFila = async (registro: PedidoRealtime) => {
           await new Promise((resolve) => setTimeout(resolve, 500));
           const itensFormatados = await buscarItensDoPedido(registro.id);
           const pedidoCompleto: PedidoCozinha = {
@@ -144,21 +184,21 @@ export function useCozinha() {
           dispararAlertaSonoro();
         };
 
-        if (eventType === 'INSERT' && ['PENDENTE', 'PAGO', 'PREPARANDO', 'PRONTO'].includes(novoRegistro.status)) {
-          await adicionarPedidoNaFila(novoRegistro);
+        if (eventType === 'INSERT' && ['PENDENTE', 'PAGO', 'PREPARANDO', 'PRONTO'].includes(statusAtual)) {
+          await adicionarPedidoNaFila(novoRegistro as PedidoRealtime);
         }
 
         if (eventType === 'UPDATE') {
-          if (novoRegistro.status === 'ENTREGUE') {
+          if (statusAtual === 'ENTREGUE') {
             setPedidos((prev) => prev.filter((p) => p.id !== novoRegistro.id));
           } else {
             setPedidos((prev) => {
               const existe = prev.some((p) => p.id === novoRegistro.id);
-              if (!existe && ['PENDENTE', 'PAGO', 'PREPARANDO', 'PRONTO'].includes(novoRegistro.status)) {
-                adicionarPedidoNaFila(novoRegistro);
+              if (!existe && ['PENDENTE', 'PAGO', 'PREPARANDO', 'PRONTO'].includes(statusAtual)) {
+                adicionarPedidoNaFila(novoRegistro as PedidoRealtime);
                 return prev;
               }
-              return prev.map((p) => (p.id === novoRegistro.id ? { ...p, status: novoRegistro.status } : p));
+              return prev.map((p) => (p.id === novoRegistro.id ? { ...p, status: statusAtual } : p));
             });
           }
         }
@@ -168,7 +208,7 @@ export function useCozinha() {
     return () => { 
       supabase.removeChannel(canalCozinha); 
     };
-  }, [restauranteId]);
+  }, [buscarItensDoPedido, restauranteId, supabase, dispararAlertaSonoro]);
 
   const executarReconciliacaoPedidos = async () => {
     if (!restauranteId || sincronizando) return;

@@ -3,6 +3,27 @@
 
 import { createClient } from '@/utils/supabase/server';
 
+interface ComposicaoInsumoPedido {
+  quantidade_necessaria: number | string | null;
+  insumos: Array<{
+    custo_unitario: number | string | null;
+  }> | null;
+}
+
+interface ItemPedidoMetrica {
+  quantidade: number | string | null;
+  itens_cardapio: Array<{
+    composicao_produto: ComposicaoInsumoPedido[] | null;
+  }> | null;
+}
+
+interface PedidoMetrica {
+  valor_total: number | string | null;
+  itens_pedido: ItemPedidoMetrica[] | null;
+}
+
+type PedidoMetricaBruta = unknown;
+
 export interface ResumoMetricasFunil {
   visitas: number;
   checkouts: number;
@@ -91,15 +112,15 @@ export async function obterMetricasGrowthDoDia(): Promise<ResumoMetricasFunil> {
 
     // 3. Processamento em memória ultra veloz (Elimina os selects repetitivos do banco)
     if (pedidosHoje && pedidosHoje.length > 0) {
-      pedidosHoje.forEach((pedido) => {
+      (pedidosHoje as PedidoMetricaBruta[] as PedidoMetrica[]).forEach((pedido) => {
         const itens = pedido.itens_pedido || [];
-        itens.forEach((item: any) => {
+        itens.forEach((item) => {
           const quantidadeVendida = Number(item.quantidade);
-          const composicoes = item.itens_cardapio?.composicao_produto || [];
+          const composicoes = item.itens_cardapio?.[0]?.composicao_produto || [];
           
-          composicoes.forEach((comp: any) => {
+          composicoes.forEach((comp) => {
             const quantidadeNecessaria = Number(comp.quantidade_necessaria);
-            const custoUnitarioInsumo = Number(comp.insumos?.custo_unitario || 0);
+            const custoUnitarioInsumo = Number(comp.insumos?.[0]?.custo_unitario || 0);
             
             // Incrementa o custo real atômico
             custoInsumosTotal += quantidadeVendida * quantidadeNecessaria * custoUnitarioInsumo;
