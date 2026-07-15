@@ -8,6 +8,8 @@ import { Insumo } from '@/types/database'
 import { AbaDadosBasicos, AbaFichaTecnica, AbaAdicionaisOpcionais } from './AbasFormularioProduto'
 import { useRouter } from 'next/navigation'
 
+const TAMANHO_MAXIMO_IMAGEM_MB = 5
+
 interface ModalNovoProdutoProps {
   aberto: boolean
   onFechar: () => void
@@ -25,6 +27,8 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
   const [preco, setPreco] = useState('')
   const [quantidadesFicha, setQuantidadesFicha] = useState<Record<string, string>>({})
   const [adicionais, setAdicionais] = useState<Array<{ nome: string; preco: number }>>([])
+  const [fotoPreviewUrl, setFotoPreviewUrl] = useState('')
+  const [fotoDataUrl, setFotoDataUrl] = useState('')
 
   // --- Estados Locais de Inserção de Adicional ---
   const [novoAdicionalNome, setNovoAdicionalNome] = useState('')
@@ -47,6 +51,36 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
     setAdicionais(prev => prev.filter((_, idx) => idx !== indexParaRemover))
   }
 
+  const handleSelecionarFoto = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const arquivo = event.target.files?.[0]
+    if (!arquivo) {
+      setFotoPreviewUrl('')
+      setFotoDataUrl('')
+      return
+    }
+
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(arquivo.type)) {
+      alert('Formato inválido. Use PNG, JPG ou WEBP.')
+      event.target.value = ''
+      return
+    }
+
+    const tamanhoMaximoBytes = TAMANHO_MAXIMO_IMAGEM_MB * 1024 * 1024
+    if (arquivo.size > tamanhoMaximoBytes) {
+      alert(`A imagem deve ter no máximo ${TAMANHO_MAXIMO_IMAGEM_MB}MB.`)
+      event.target.value = ''
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const resultado = String(reader.result ?? '')
+      setFotoPreviewUrl(resultado)
+      setFotoDataUrl(resultado)
+    }
+    reader.readAsDataURL(arquivo)
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!nome || !preco) {
@@ -61,7 +95,8 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
         preco_venda: parseFloat(preco),
         disponivel: true, // Registra o hambúrguer ativo e visível por padrão
         fichaTecnica: quantidadesFicha,
-        adicionais
+        adicionais,
+        imagemDataUrl: fotoDataUrl || undefined
       })
 
       if (resultado.success) {
@@ -71,6 +106,8 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
         setPreco('')
         setQuantidadesFicha({})
         setAdicionais([])
+        setFotoPreviewUrl('')
+        setFotoDataUrl('')
         setAbaAtiva('DADOS')
         onFechar()
         router.refresh()
@@ -132,6 +169,8 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
                 nome={nome} setNome={setNome}
                 descricao={descricao} setDescricao={setDescricao}
                 preco={preco} setPreco={setPreco}
+                fotoPreviewUrl={fotoPreviewUrl}
+                onSelecionarFoto={handleSelecionarFoto}
               />
             )}
 

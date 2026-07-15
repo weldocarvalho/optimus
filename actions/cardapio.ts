@@ -11,6 +11,45 @@ interface DadosNovoProduto {
   disponivel: boolean
   fichaTecnica: Record<string, string> // id_insumo (UUID) -> quantidade em string vinda do input
   adicionais: Array<{ nome: string; preco: number }>
+  imagemDataUrl?: string
+}
+
+const BUCKET_IMAGENS_PRODUTOS =
+  process.env.SUPABASE_PRODUTOS_BUCKET ??
+  process.env.WCS_GESTOR_INTELIGENTE_CARDAPIO_BUCKET ??
+  'produtos'
+const TAMANHO_MAXIMO_IMAGEM_BYTES = 5 * 1024 * 1024
+
+function parseImagemDataUrl(dataUrl: string) {
+  const match = dataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp));base64,(.+)$/)
+  if (!match) {
+    throw new Error('Formato da imagem inválido. Use PNG, JPG ou WEBP.')
+  }
+
+  const mimeType = match[1]
+  const base64Data = match[2]
+  const buffer = Buffer.from(base64Data, 'base64')
+
+  if (buffer.length === 0) {
+    throw new Error('Arquivo de imagem vazio.')
+  }
+  if (buffer.length > TAMANHO_MAXIMO_IMAGEM_BYTES) {
+    throw new Error('A imagem excede o limite de 5MB.')
+  }
+
+  const extensaoPorMimeType: Record<string, string> = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/webp': 'webp'
+  }
+
+  const extensao = extensaoPorMimeType[mimeType]
+  if (!extensao) {
+    throw new Error('Tipo de imagem não suportado.')
+  }
+
+  return { buffer, mimeType, extensao }
 }
 
 function getErrorMessage(error: unknown): string {
@@ -58,7 +97,43 @@ export async function criarProdutoAdmin(dados: DadosNovoProduto) {
     return { success: false, error: 'Falha crítica ao obter identificador (slug) da loja.' }
   }
 
+  let caminhoImagemUpload: string | null = null
+  let produtoCriado = false
+
   try {
+    let imagemUrl: string | null = null
+
+    if (dados.imagemDataUrl) {
+      const imagem = parseImagemDataUrl(dados.imagemDataUrl)
+      caminhoImagemUpload = `${restauranteId}/${crypto.randomUUID()}.${imagem.extensao}`
+
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET_IMAGENS_PRODUTOS)
+        .upload(caminhoImagemUpload, imagem.buffer, {
+          contentType: imagem.mimeType,
+          upsert: false
+        })
+
+      if (uploadError) {
+        if (uploadError.message.includes('Bucket not found')) {
+          throw new Error(
+            `Bucket "${BUCKET_IMAGENS_PRODUTOS}" não encontrado no Supabase Storage. Crie o bucket ou ajuste SUPABASE_PRODUTOS_BUCKET/.env.local.`
+          )
+        }
+        throw new Error(`Falha ao enviar imagem do produto: ${uploadError.message}`)
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from(BUCKET_IMAGENS_PRODUTOS)
+        .getPublicUrl(caminhoImagemUpload)
+
+      if (!publicUrlData?.publicUrl) {
+        throw new Error('Falha ao gerar URL pública da imagem do produto.')
+      }
+
+      imagemUrl = publicUrlData.publicUrl
+    }
+
     // 4. Inserção atômica do item na tabela principal 'itens_cardapio'
     const { data: produto, error: prodError } = await supabase
       .from('itens_cardapio')
@@ -67,12 +142,14 @@ export async function criarProdutoAdmin(dados: DadosNovoProduto) {
         nome: dados.nome,
         descricao: dados.descricao || null,
         preco_venda: dados.preco_venda,
+        imagem_url: imagemUrl,
         disponivel: dados.disponivel
       })
       .select()
       .single()
 
     if (prodError) throw prodError
+    produtoCriado = true
 
     // 5. Inserção da Ficha Técnica na tabela 'composicao_produto' para dedução e análise de CMV
     const insumosFiltrados = Object.entries(dados.fichaTecnica).filter(([, qtd]) => parseFloat(qtd) > 0)
@@ -113,6 +190,12 @@ export async function criarProdutoAdmin(dados: DadosNovoProduto) {
 
     return { success: true }
   } catch (error: unknown) {
+    if (!produtoCriado && caminhoImagemUpload) {
+      await supabase.storage
+        .from(BUCKET_IMAGENS_PRODUTOS)
+        .remove([caminhoImagemUpload])
+    }
+
     const message = getErrorMessage(error)
     console.error('[SERVER ACTION ERROR] Falha ao registrar produto:', error)
     return { success: false, error: message }

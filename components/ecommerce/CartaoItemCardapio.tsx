@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { ItemCardapio } from '@/types/database';
 import { Complemento, useCarrinho } from './ContextoCarrinho';
 
@@ -48,8 +49,19 @@ export default function CartaoItemCardapio({ produto }: CardProps) {
         onClick={() => setSanfonaAberta(!sanfonaAberta)}
         className="p-4 flex gap-4 items-center cursor-pointer select-none hover:bg-zinc-50/50 transition-colors"
       >
-        <div className="w-16 h-16 rounded-[18px] flex items-center justify-center flex-shrink-0 text-2xl bg-amber-50 text-amber-600 shadow-inner">
-          🍔
+        <div className="w-16 h-16 rounded-[18px] flex items-center justify-center flex-shrink-0 bg-amber-50 text-amber-600 shadow-inner overflow-hidden">
+          {produto.imagem_url ? (
+            <Image
+              src={produto.imagem_url}
+              alt={`Foto do produto ${produto.nome}`}
+              className="w-full h-full object-cover"
+              width={64}
+              height={64}
+              loading="lazy"
+            />
+          ) : (
+            <span className="text-2xl">🍔</span>
+          )}
         </div>
 
         <div className="flex-1 min-w-0">

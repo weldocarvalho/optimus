@@ -2,6 +2,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { Insumo } from '@/types/database';
 import { AdicionalCustomizado } from '@/actions/admin';
 
@@ -13,9 +14,20 @@ interface AbaDadosProps {
   setDescricao: (v: string) => void;
   preco: string;
   setPreco: (v: string) => void;
+  fotoPreviewUrl: string;
+  onSelecionarFoto: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-export function AbaDadosBasicos({ nome, setNome, descricao, setDescricao, preco, setPreco }: AbaDadosProps) {
+export function AbaDadosBasicos({
+  nome,
+  setNome,
+  descricao,
+  setDescricao,
+  preco,
+  setPreco,
+  fotoPreviewUrl,
+  onSelecionarFoto
+}: AbaDadosProps) {
   return (
     <div className="space-y-4 flex-1">
       <div className="space-y-1">
@@ -50,6 +62,27 @@ export function AbaDadosBasicos({ nome, setNome, descricao, setDescricao, preco,
           placeholder="0,00" 
           className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E52521]" 
         />
+      </div>
+      <div className="space-y-2">
+        <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Foto do Produto</label>
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          onChange={onSelecionarFoto}
+          className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E52521]"
+        />
+        {fotoPreviewUrl && (
+          <div className="w-24 h-24 overflow-hidden rounded-xl border border-zinc-200/60">
+            <Image
+              src={fotoPreviewUrl}
+              alt="Prévia da foto do produto"
+              className="w-full h-full object-cover"
+              width={96}
+              height={96}
+              unoptimized
+            />
+          </div>
+        )}
       </div>
     </div>
   );
