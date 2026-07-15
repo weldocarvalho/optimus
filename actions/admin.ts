@@ -17,11 +17,18 @@ export interface InsumoFichaInput {
 
 interface ProdutoComposicao {
   quantidade_necessaria: number | null;
-  insumos: Array<{
+  insumos:
+    | Array<{
+      nome: string;
+      custo_unitario: number | null;
+      unidade_medida: string;
+    }>
+    | {
     nome: string;
     custo_unitario: number | null;
     unidade_medida: string;
-  }> | null;
+  }
+    | null;
 }
 
 interface ItemCardapioBruto {
@@ -182,6 +189,25 @@ export async function atualizarStatusEmLote(ids: string[], novoStatus: boolean) 
   revalidatePath('/admin/produtos')
 }
 
+export async function excluirProdutosEmLote(ids: string[]) {
+  if (ids.length === 0) {
+    return { success: true }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('itens_cardapio')
+    .delete()
+    .in('id', ids)
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath('/admin/produtos')
+  return { success: true }
+}
+
 /**
  * RESTAURAÇÃO DA INTELIGÊNCIA FINANCEIRA:
  * Busca todos os produtos vinculados ao restaurante logado e computa recursivamente
@@ -227,7 +253,7 @@ export async function listarProdutosComCMV(): Promise<ItemCardapioComCMV[]> {
 
     if (item.composicao_produto) {
       item.composicao_produto.forEach((comp) => {
-        const insumo = comp.insumos?.[0];
+        const insumo = Array.isArray(comp.insumos) ? comp.insumos[0] : comp.insumos;
         if (insumo) {
           const unitario = Number(insumo.custo_unitario || 0);
           const necessaria = Number(comp.quantidade_necessaria || 0);
