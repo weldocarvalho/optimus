@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { APP_BRAND_NAME } from '@/utils/branding';
 
-type AdminTab = 'produtos' | 'insumos' | 'cozinha' | 'metricas';
+type AdminTab = 'produtos' | 'insumos' | 'cozinha' | 'metricas' | 'pagamentos';
 
 interface AdminNavHeaderProps {
   activeTab: AdminTab;
@@ -56,6 +56,16 @@ const navItems: NavItem[] = [
     icon: (
       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+      </svg>
+    ),
+  },
+  {
+    id: 'pagamentos',
+    href: '/admin/pagamentos',
+    label: 'Pagamentos',
+    icon: (
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M3 6h18a.75.75 0 01.75.75v10.5A2.25 2.25 0 0119.5 19.5h-15A2.25 2.25 0 012.25 17.25V6.75A.75.75 0 013 6z" />
       </svg>
     ),
   },

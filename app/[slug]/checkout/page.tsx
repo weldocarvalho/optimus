@@ -1,7 +1,8 @@
 // app/[slug]/checkout/page.tsx (Parte 1 de 2)
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCarrinho } from '@/components/ecommerce/ContextoCarrinho';
@@ -30,13 +31,30 @@ export default function TelaDeCheckoutDedicada() {
   const [bairro, setBairro] = useState('');
   const [nomeCliente, setNomeCliente] = useState('');
   const [telefoneCliente, setTelefoneCliente] = useState('');
+  const [emailCliente, setEmailCliente] = useState('');
+  const [carregandoPagamento, setCarregandoPagamento] = useState(false);
+  const [dadosPix, setDadosPix] = useState<{ qr_code: string; qr_code_base64?: string; payment_id: string } | null>(null);
+  const [urlCheckoutCartao, setUrlCheckoutCartao] = useState<string | null>(null);
 
   const formatarMoeda = (valor: number) => {
     return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
+  const dadosEndereco = useMemo(
+    () => ({
+      rua,
+      numero,
+      bairro,
+      cidade: 'Cidade',
+      cep,
+    }),
+    [bairro, cep, numero, rua]
+  );
+
   const handleVoltarClique = () => {
-    if (etapaCheckout === 'ENTREGA') {
+    if (etapaCheckout === 'PAGAMENTO') {
+      setEtapaCheckout('ENTREGA');
+    } else if (etapaCheckout === 'ENTREGA') {
       setEtapaCheckout('SACOLA');
     } else {
       router.push(`/${slug}`); // Retorna nativamente para o cardápio correto
@@ -48,9 +66,56 @@ export default function TelaDeCheckoutDedicada() {
     if (etapaCheckout === 'SACOLA') {
       if (itens.length === 0) return;
       setEtapaCheckout('ENTREGA');
-    } else {
-      // Disparador de envio para o Banco de Dados / APIs de Pagamento reais
-      alert('Processando transação com criptografia de ponta...');
+    } else if (etapaCheckout === 'ENTREGA') {
+      setEtapaCheckout('PAGAMENTO');
+    }
+  };
+
+  const criarPagamento = async (novoMetodo: 'PIX' | 'CARTAO') => {
+    setCarregandoPagamento(true);
+    setDadosPix(null);
+    setUrlCheckoutCartao(null);
+
+    try {
+      const resposta = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          slug,
+          paymentMethod: novoMetodo,
+          itens: itens.map((item) => ({
+            item_cardapio_id: item.produto.id,
+            quantidade: item.quantidade,
+          })),
+          dadosCliente: {
+            nome: nomeCliente,
+            telefone: telefoneCliente,
+            email: emailCliente,
+            endereco: dadosEndereco,
+          },
+        }),
+      });
+
+      const body = await resposta.json();
+      if (!resposta.ok) {
+        throw new Error(body?.error || 'Falha ao iniciar pagamento.');
+      }
+
+      if (novoMetodo === 'PIX') {
+        setDadosPix({
+          qr_code: body.qr_code,
+          qr_code_base64: body.qr_code_base64,
+          payment_id: body.payment_id,
+        });
+      } else if (body.checkout_url) {
+        setUrlCheckoutCartao(body.checkout_url);
+        window.location.href = body.checkout_url;
+      }
+    } catch (error) {
+      console.error(error);
+      alert(error instanceof Error ? error.message : 'Falha ao iniciar pagamento.');
+    } finally {
+      setCarregandoPagamento(false);
     }
   };
 
@@ -97,10 +162,18 @@ export default function TelaDeCheckoutDedicada() {
           </button>
           <div>
             <h1 className="text-base font-black tracking-tight text-zinc-900">
-              {etapaCheckout === 'SACOLA' ? 'Revisar Sacola' : 'Finalizar Pedido'}
+              {etapaCheckout === 'SACOLA'
+                ? 'Revisar Sacola'
+                : etapaCheckout === 'ENTREGA'
+                  ? 'Finalizar Pedido'
+                  : 'Pagamento'}
             </h1>
             <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-0.5">
-              {etapaCheckout === 'SACOLA' ? `Etapa 1 de 2 • ${totalItens} itens` : 'Etapa 2 de 2 • Gateway Seguro'}
+              {etapaCheckout === 'SACOLA'
+                ? `Etapa 1 de 3 • ${totalItens} itens`
+                : etapaCheckout === 'ENTREGA'
+                  ? 'Etapa 2 de 3 • Dados de entrega'
+                  : 'Etapa 3 de 3 • PIX ou Cartão'}
             </p>
           </div>
         </header>
@@ -215,7 +288,75 @@ export default function TelaDeCheckoutDedicada() {
                     className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:bg-white focus:border-zinc-400 transition-all text-zinc-900 placeholder-zinc-400"
                   />
                 </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">E-mail para pagamento</label>
+                  <input
+                    type="email"
+                    placeholder="cliente@exemplo.com"
+                    value={emailCliente}
+                    onChange={(e) => setEmailCliente(e.target.value)}
+                    className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:bg-white focus:border-zinc-400 transition-all text-zinc-900 placeholder-zinc-400"
+                  />
+                </div>
               </div>
+            </div>
+          )}
+          {etapaCheckout === 'PAGAMENTO' && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="bg-zinc-50 border border-zinc-200/60 rounded-xl p-4 flex justify-between items-center text-xs font-medium">
+                <span className="text-zinc-500">Resumo da Compra</span>
+                <span className="font-bold text-zinc-900">{formatarMoeda(valorTotal)}</span>
+              </div>
+
+              <div className="grid gap-3">
+                <button
+                  type="button"
+                  onClick={() => criarPagamento('PIX')}
+                  disabled={carregandoPagamento}
+                  className="rounded-2xl border border-[#E9B31E] bg-[#FFC72C] px-4 py-4 text-left text-zinc-900 shadow-sm disabled:opacity-50"
+                >
+                  <div className="text-xs font-bold uppercase tracking-widest">PIX</div>
+                  <div className="text-sm font-medium">Pagar com QR Code e copia e cola</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => criarPagamento('CARTAO')}
+                  disabled={carregandoPagamento}
+                  className="rounded-2xl border border-zinc-200 bg-white px-4 py-4 text-left text-zinc-900 shadow-sm disabled:opacity-50"
+                >
+                  <div className="text-xs font-bold uppercase tracking-widest">Cartão de crédito</div>
+                  <div className="text-sm font-medium">Finalizar no checkout do Mercado Pago</div>
+                </button>
+              </div>
+
+              {dadosPix && (
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4 space-y-3">
+                  <div className="text-sm font-semibold text-zinc-800">Seu PIX foi gerado</div>
+                  {dadosPix.qr_code_base64 && (
+                    <Image
+                      src={`data:image/png;base64,${dadosPix.qr_code_base64}`}
+                      alt="QR Code PIX"
+                      width={224}
+                      height={224}
+                      unoptimized
+                      className="mx-auto h-56 w-56 object-contain"
+                    />
+                  )}
+                  <textarea
+                    readOnly
+                    value={dadosPix.qr_code}
+                    className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-[11px] font-mono text-zinc-700"
+                    rows={4}
+                  />
+                </div>
+              )}
+
+              {urlCheckoutCartao && (
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-700">
+                  Redirecionando para pagamento com cartão...
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -229,7 +370,7 @@ export default function TelaDeCheckoutDedicada() {
                 {formatarMoeda(valorTotal)}
               </span>
             </div>
-            {etapaCheckout === 'SACOLA' && itens.length > 0 && (
+            {etapaCheckout !== 'PAGAMENTO' && itens.length > 0 && (
               <span className="text-[10px] font-bold text-zinc-600 bg-zinc-100 px-2.5 py-1 rounded-md border border-zinc-200/40">
                 Itens revisados
               </span>
@@ -242,7 +383,13 @@ export default function TelaDeCheckoutDedicada() {
             disabled={itens.length === 0}
             className="w-full py-4 px-6 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all duration-200 active:scale-[0.99] shadow-sm disabled:opacity-30 disabled:pointer-events-none"
           >
-            {etapaCheckout === 'SACOLA' ? 'Avançar para Entrega' : 'Ir para o Pagamento'}
+            {etapaCheckout === 'SACOLA'
+              ? 'Avançar para Entrega'
+              : etapaCheckout === 'ENTREGA'
+                ? 'Ir para o Pagamento'
+                : carregandoPagamento
+                  ? 'Processando...'
+                  : 'Escolher pagamento'}
           </button>
         </footer>
 

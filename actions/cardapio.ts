@@ -210,13 +210,18 @@ export async function criarProdutoAdmin(dados: DadosNovoProduto) {
  */
 export async function obterCardapioPorSlug(slug: string) {
   const supabase = await createClient()
+  const slugNormalizado = slug.trim()
+
+  if (!slugNormalizado) {
+    return { restaurante: null, produtos: [] }
+  }
 
   // 1. Busca primeiro o ID e nome do restaurante usando o slug da URL
   const { data: restaurante, error: erroRestaurante } = await supabase
     .from('restaurantes')
     .select('id, nome, tipo')
-    .eq('slug', slug)
-    .single()
+    .eq('slug', slugNormalizado)
+    .maybeSingle()
 
   if (erroRestaurante || !restaurante) {
     console.error('Erro ao localizar restaurante pelo slug:', erroRestaurante)

@@ -25,6 +25,20 @@ export interface Restaurante {
   created_at: string;
 }
 
+export interface RestauranteIntegracaoPagamento {
+  id: string;
+  restaurante_id: string;
+  provedor: string;
+  provider_user_id: string | null;
+  access_token: string | null;
+  refresh_token: string | null;
+  token_expires_at: string | null;
+  connection_status: 'pendente' | 'conectado' | 'desconectado';
+  account_email: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /**
  * Interface mestre da tabela global de insumos físicos (estoque).
  */
