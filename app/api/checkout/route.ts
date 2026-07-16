@@ -145,6 +145,7 @@ export async function POST(request: Request) {
     });
     const emailPayer = normalizarEmailPayer(dadosCliente.email, slug, dadosCliente.telefone);
     const externalReference = `pedido-${restaurante.id}-${Date.now()}`;
+    const idempotencyKey = `${externalReference}-${paymentMethod.toLowerCase()}`;
 
     if (paymentMethod === 'PIX') {
       const response = await fetch(`${MP_API_BASE}/v1/payments`, {
@@ -152,6 +153,7 @@ export async function POST(request: Request) {
         headers: {
           authorization: `Bearer ${accessToken}`,
           'content-type': 'application/json',
+          'x-idempotency-key': idempotencyKey,
         },
         body: JSON.stringify({
           transaction_amount: Number(valorTotal.toFixed(2)),
@@ -188,6 +190,7 @@ export async function POST(request: Request) {
       headers: {
         authorization: `Bearer ${accessToken}`,
         'content-type': 'application/json',
+        'x-idempotency-key': idempotencyKey,
       },
       body: JSON.stringify({
         items: itens.map((item) => ({
