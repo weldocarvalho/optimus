@@ -12,9 +12,12 @@ interface ItemMetadado {
 interface MetadataPedido {
   slug?: string;
   restauranteId?: string;
-  dadosCliente?: string;
-  itens?: string;
+  restaurante_id?: string;
+  dadosCliente?: unknown;
+  dados_cliente?: unknown;
+  itens?: unknown;
   metodoPagamento?: 'PIX' | 'CARTAO';
+  metodo_pagamento?: 'PIX' | 'CARTAO';
 }
 
 interface ItemCardapioPrecificado {
@@ -55,6 +58,53 @@ function serializarErro(error: unknown): Record<string, unknown> {
   }
 
   return { valor: String(error) };
+}
+
+function interpretarJsonMetadado<T>(valor: unknown): T | null {
+  if (valor == null) {
+    return null;
+  }
+
+  if (typeof valor === 'string') {
+    const texto = valor.trim();
+    if (!texto) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(texto) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof valor === 'object') {
+    return valor as T;
+  }
+
+  return null;
+}
+
+function resumirMetadadosPagamento(metadata: MetadataPedido) {
+  const dadosClienteBruto = metadata.dadosCliente;
+  const itensBruto = metadata.itens;
+  const dadosClienteParseado = interpretarJsonMetadado<Record<string, unknown>>(dadosClienteBruto);
+  const itensParseados = interpretarJsonMetadado<ItemMetadado[]>(itensBruto);
+
+  return {
+    chaves_metadata: Object.keys(metadata),
+    slug_presente: typeof metadata.slug === 'string' && metadata.slug.trim().length > 0,
+    tipo_dados_cliente: dadosClienteBruto == null ? 'ausente' : typeof dadosClienteBruto,
+    tamanho_dados_cliente_texto: typeof dadosClienteBruto === 'string' ? dadosClienteBruto.length : null,
+    dados_cliente_parseado_valido: Boolean(dadosClienteParseado && typeof dadosClienteParseado === 'object'),
+    dados_cliente_campos: dadosClienteParseado ? Object.keys(dadosClienteParseado) : [],
+    dados_cliente_tem_nome: typeof dadosClienteParseado?.nome === 'string',
+    dados_cliente_tem_telefone: typeof dadosClienteParseado?.telefone === 'string',
+    tipo_itens: itensBruto == null ? 'ausente' : typeof itensBruto,
+    tamanho_itens_texto: typeof itensBruto === 'string' ? itensBruto.length : null,
+    itens_parseados_valido: Array.isArray(itensParseados),
+    itens_quantidade: Array.isArray(itensParseados) ? itensParseados.length : 0,
+  };
 }
 
 function registrarConsoleWebhook({
@@ -332,8 +382,22 @@ export async function POST(request: Request) {
     etapaAtual = 'leitura_metadados_pagamento';
     const metadata = pagamento.metadata ?? {};
     const slug = String(metadata.slug ?? '').trim();
-    const dadosCliente = metadata.dadosCliente ? JSON.parse(metadata.dadosCliente) : null;
-    const itens = metadata.itens ? (JSON.parse(metadata.itens) as ItemMetadado[]) : [];
+    const dadosCliente = interpretarJsonMetadado<Record<string, unknown>>(
+      metadata.dadosCliente ?? metadata.dados_cliente
+    );
+    const itens = interpretarJsonMetadado<ItemMetadado[]>(metadata.itens) ?? [];
+    const diagnosticoMetadados = resumirMetadadosPagamento(metadata);
+
+    await registrarLogWebhook({
+      supabase,
+      idCorrelacao,
+      etapa: 'diagnostico_metadados_pagamento',
+      nivel: 'info',
+      mensagem: 'Resumo técnico dos metadados recebidos do Mercado Pago.',
+      restauranteId,
+      paymentId: String(pagamento.id),
+      dados: diagnosticoMetadados,
+    });
 
     if (!slug) {
       await registrarLogWebhook({
@@ -452,7 +516,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true });
     }
 
-    const formaPagamento = String(pagamento.payment_method_id || metadata.metodoPagamento || 'CARTAO').toUpperCase() === 'PIX'
+    const formaPagamento = String(
+      pagamento.payment_method_id || metadata.metodoPagamento || metadata.metodo_pagamento || 'CARTAO'
+    ).toUpperCase() === 'PIX'
       ? 'PIX'
       : 'CARTAO';
 
