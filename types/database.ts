@@ -18,8 +18,11 @@ export interface Restaurante {
   nome: string;
   tipo: string;
   slug: string;
+  status_assinatura: string;
   meta_pixel_id: string | null;
   stripe_account_id: string | null;
+  gateway_customer_id: string | null;
+  email_corporativo: string | null;
   meta_access_token: string | null;
   meta_ad_account_id: string | null;
   created_at: string;

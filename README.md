@@ -22,6 +22,9 @@ MERCADO_PAGO_CLIENT_ID=""
 MERCADO_PAGO_CLIENT_SECRET=""
 MERCADO_PAGO_REDIRECT_URI=""
 MERCADO_PAGO_STATE_SECRET=""
+STRIPE_SECRET_KEY=""
+STRIPE_WEBHOOK_SECRET=""
+STRIPE_ASSINATURA_PRICE_ID=""
 HML_TEST_EMAIL="teste@restaurante.com"
 HML_TEST_PASSWORD="1234"
 HML_APP_PORT="4100"
@@ -136,6 +139,24 @@ O teste valida: leitura de insumos e leitura de produtos com CMV calculado (`lis
 - Proteção de rotas no ponto de entrada `proxy.ts` (convenção do Next.js 16), reutilizando `updateSession` em `utils/supabase/middleware.ts`.
 - Fluxos críticos (checkout/webhook) com validação server-side e sem confiança em totais enviados pelo cliente.
 
+## Assinatura SaaS (Stripe)
+
+Fluxo implementado para venda da plataforma:
+
+1. Landing page em `/`
+2. Página de assinatura em `/assinar`
+3. Criação da sessão Stripe em `POST /api/assinaturas/checkout`
+4. Provisionamento automático no webhook `POST /api/webhooks/stripe-assinaturas`
+
+Após pagamento confirmado no Stripe:
+- cria/atualiza restaurante
+- registra assinatura em `assinaturas_plataforma`
+- evita duplicidade por evento em `eventos_webhook_stripe`
+- vincula perfil administrativo e dispara acesso por e-mail (magic link/invite)
+
+Antes de habilitar em produção, execute no Supabase:
+- `sql-assinaturas-plataforma.sql`
+
 ## Stack principal
 
 - Next.js 16
@@ -143,3 +164,4 @@ O teste valida: leitura de insumos e leitura de produtos com CMV calculado (`lis
 - TypeScript
 - Supabase
 - Mercado Pago
+- Stripe
