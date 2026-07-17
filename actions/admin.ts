@@ -195,9 +195,11 @@ export async function excluirProdutosEmLote(ids: string[]) {
   }
 
   const supabase = await createClient()
+
+  // Soft delete: arquiva o item e remove da vitrine pública sem quebrar o histórico de pedidos.
   const { error } = await supabase
     .from('itens_cardapio')
-    .delete()
+    .update({ arquivado: true, disponivel: false })
     .in('id', ids)
 
   if (error) {
@@ -243,6 +245,7 @@ export async function listarProdutosComCMV(): Promise<ItemCardapioComCMV[]> {
       )
     `)
     .eq('restaurante_id', perfil.restaurante_id)
+    .eq('arquivado', false)
 
   if (error || !itens) return []
 
