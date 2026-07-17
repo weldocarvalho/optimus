@@ -29,6 +29,7 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
   const [adicionais, setAdicionais] = useState<Array<{ nome: string; preco: number }>>([])
   const [fotoPreviewUrl, setFotoPreviewUrl] = useState('')
   const [fotoDataUrl, setFotoDataUrl] = useState('')
+  const [nomeArquivoFoto, setNomeArquivoFoto] = useState('')
 
   // --- Estados Locais de Inserção de Adicional ---
   const [novoAdicionalNome, setNovoAdicionalNome] = useState('')
@@ -56,6 +57,7 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
     if (!arquivo) {
       setFotoPreviewUrl('')
       setFotoDataUrl('')
+      setNomeArquivoFoto('')
       return
     }
 
@@ -77,6 +79,7 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
       const resultado = String(reader.result ?? '')
       setFotoPreviewUrl(resultado)
       setFotoDataUrl(resultado)
+      setNomeArquivoFoto(arquivo.name)
     }
     reader.readAsDataURL(arquivo)
   }
@@ -108,6 +111,7 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
         setAdicionais([])
         setFotoPreviewUrl('')
         setFotoDataUrl('')
+        setNomeArquivoFoto('')
         setAbaAtiva('DADOS')
         onFechar()
         router.refresh()
@@ -124,8 +128,7 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
         {/* Cabeçalho do Modal */}
         <div className="flex items-center justify-between border-b border-zinc-100 p-5">
           <div>
-            <h2 className="text-sm font-bold tracking-tight text-[#1A1A1A]">Novo hambúrguer e configuração</h2>
-            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Catálogo geral e engenharia financeira</p>
+            <h2 className="text-sm font-bold tracking-tight text-[#1A1A1A]">Novo hambúrguer</h2>
           </div>
           <button 
             type="button" 
@@ -158,7 +161,7 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
             onClick={() => setAbaAtiva('ADICIONAIS')}
             className={`flex-1 text-center py-2.5 rounded-[10px] transition-all ${abaAtiva === 'ADICIONAIS' ? 'bg-white shadow-sm text-zinc-900' : 'text-zinc-400 hover:text-zinc-600'}`}
           >
-            Opcionais Adicionais
+            Adicionais
           </button>
           </div>
         </div>
@@ -172,6 +175,7 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
                 descricao={descricao} setDescricao={setDescricao}
                 preco={preco} setPreco={setPreco}
                 fotoPreviewUrl={fotoPreviewUrl}
+                nomeArquivoFoto={nomeArquivoFoto}
                 onSelecionarFoto={handleSelecionarFoto}
               />
             )}

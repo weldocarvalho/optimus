@@ -41,6 +41,18 @@ export default function ListaInsumosAdmin({ insumosIniciais }: ListaProps) {
     });
   };
 
+  const handleExcluirInsumo = (insumo: Insumo) => {
+    if (!confirm(`Deseja apagar o insumo "${insumo.nome}"?`)) return;
+
+    startTransition(async () => {
+      const resultado = await excluirInsumosEmLote([insumo.id]);
+      if (resultado.success) {
+        setSelecionados((prev) => prev.filter((id) => id !== insumo.id));
+        router.refresh();
+      }
+    });
+  };
+
   const handleSalvarNovoInsumo = (nome: string, unidade: 'g' | 'ml' | 'un', custo: number, atual: number, minimo: number) => {
     startTransition(async () => {
       if ((await criarInsumoAdmin(nome, unidade, custo, atual, minimo)).success) {
@@ -89,6 +101,8 @@ export default function ListaInsumosAdmin({ insumosIniciais }: ListaProps) {
               isSelecionado={selecionados.includes(insumo.id)} 
               onToggleSelect={() => handleToggleSelect(insumo.id)} 
               onEditarClick={(ins) => setInsumoParaEditar(ins)} // Repassa o clique abrindo o modal de edição
+              onExcluirClick={handleExcluirInsumo}
+              isPending={isPending}
             />
           ))
         )}

@@ -8,9 +8,18 @@ interface CardProps {
   isSelecionado: boolean;
   onToggleSelect: () => void;
   onEditarClick: (insumo: Insumo) => void; // Nova propriedade de clique
+  onExcluirClick: (insumo: Insumo) => void;
+  isPending?: boolean;
 }
 
-export default function CardInsumoAdmin({ insumo, isSelecionado, onToggleSelect, onEditarClick }: CardProps) {
+export default function CardInsumoAdmin({
+  insumo,
+  isSelecionado,
+  onToggleSelect,
+  onEditarClick,
+  onExcluirClick,
+  isPending = false,
+}: CardProps) {
   const estoqueCritico = Number(insumo.estoque_atual) <= Number(insumo.estoque_minimo);
 
   return (
@@ -67,9 +76,22 @@ export default function CardInsumoAdmin({ insumo, isSelecionado, onToggleSelect,
         <button
           type="button"
           onClick={() => onEditarClick(insumo)}
+          disabled={isPending}
           className="rounded-xl border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-600 transition hover:border-zinc-400 hover:text-zinc-800"
         >
           Editar
+        </button>
+        <button
+          type="button"
+          onClick={() => onExcluirClick(insumo)}
+          disabled={isPending}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 disabled:opacity-60"
+          aria-label={`Apagar ${insumo.nome}`}
+          title="Apagar insumo"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M8 6V4h8v2m-7 4v8m6-8v8M5 6l1 14h12l1-14" />
+          </svg>
         </button>
       </div>
     </div>

@@ -38,8 +38,7 @@ export function CardPedidoCozinha({ pedido, onAvancarStatus, isMutating }: CardP
         // Coral Terracota Oficial - Concentração máxima na queima/montagem
         return 'bg-[#E16349] text-white hover:bg-[#c9533a]';
       case 'PRONTO':
-        // Cinza Estrutural Fosco com Texto Carbono - Transição logística externa
-        return 'bg-[#F3F3F3] text-[#1A1A1A] border border-zinc-200/80 hover:bg-zinc-200';
+        return 'bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200';
       default:
         return 'bg-zinc-100 text-zinc-400 cursor-not-allowed';
     }

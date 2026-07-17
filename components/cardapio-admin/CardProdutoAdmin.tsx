@@ -7,9 +7,19 @@ interface CardProps {
   produto: ItemCardapioComCMV;
   isSelecionado: boolean;
   onToggleSelect: () => void;
+  onAlternarStatus: () => void;
+  onExcluir: () => void;
+  isPending?: boolean;
 }
 
-export default function CardProdutoAdmin({ produto, isSelecionado, onToggleSelect }: CardProps) {
+export default function CardProdutoAdmin({
+  produto,
+  isSelecionado,
+  onToggleSelect,
+  onAlternarStatus,
+  onExcluir,
+  isPending = false,
+}: CardProps) {
   const cmvCritico = produto.percentual_cmv > 40;
 
   return (
@@ -22,9 +32,30 @@ export default function CardProdutoAdmin({ produto, isSelecionado, onToggleSelec
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="truncate text-sm font-semibold leading-tight text-[#1A1A1A] transition-colors group-hover:text-[#E16349] sm:text-base">{produto.nome}</h3>
-            <span className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${produto.disponivel ? 'border-emerald-100 bg-emerald-50 text-emerald-600' : 'border-zinc-200 bg-zinc-50 text-zinc-400'}`}>
+            <button
+              type="button"
+              onClick={onAlternarStatus}
+              disabled={isPending}
+              className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold tracking-wide transition disabled:opacity-60 ${
+                produto.disponivel
+                  ? 'border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                  : 'border-zinc-200 bg-zinc-50 text-zinc-500 hover:bg-zinc-100'
+              }`}
+            >
               {produto.disponivel ? 'Ativo' : 'Pausado'}
-            </span>
+            </button>
+            <button
+              type="button"
+              onClick={onExcluir}
+              disabled={isPending}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 disabled:opacity-60"
+              aria-label={`Apagar ${produto.nome}`}
+              title="Apagar item"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M8 6V4h8v2m-7 4v8m6-8v8M5 6l1 14h12l1-14" />
+              </svg>
+            </button>
           </div>
           <p className="mt-1 max-w-md truncate text-xs font-medium text-zinc-500">{produto.descricao || 'Sem descrição.'}</p>
           

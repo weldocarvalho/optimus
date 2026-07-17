@@ -4,7 +4,9 @@
 import { useState, useTransition } from 'react';
 import { 
   ItemCardapioComCMV, 
-  atualizarStatusEmLote
+  atualizarStatusEmLote,
+  alternarDisponibilidadeProduto,
+  excluirProdutosEmLote
 } from '@/actions/admin';
 import { Insumo } from '@/types/database';
 import { useRouter } from 'next/navigation';
@@ -57,6 +59,46 @@ export default function ListaProdutosAdmin({
     });
   };
 
+  const handleExcluirSelecionados = () => {
+    if (selecionados.length === 0) return;
+    if (!confirm('Deseja apagar os produtos selecionados? Essa ação não pode ser desfeita.')) return;
+
+    startTransition(async () => {
+      const resultado = await excluirProdutosEmLote(selecionados);
+      if (resultado.success) {
+        setSelecionados([]);
+        router.refresh();
+        return;
+      }
+      alert(resultado.error || 'Não foi possível apagar os produtos selecionados.');
+    });
+  };
+
+  const handleAlternarStatusProduto = (id: string, statusAtual: boolean) => {
+    startTransition(async () => {
+      try {
+        await alternarDisponibilidadeProduto(id, statusAtual);
+        router.refresh();
+      } catch (error) {
+        console.error('Erro ao alternar status do produto:', error);
+      }
+    });
+  };
+
+  const handleExcluirProduto = (id: string, nome: string) => {
+    if (!confirm(`Deseja apagar o item "${nome}"?`)) return;
+
+    startTransition(async () => {
+      const resultado = await excluirProdutosEmLote([id]);
+      if (resultado.success) {
+        setSelecionados((prev) => prev.filter((itemId) => itemId !== id));
+        router.refresh();
+        return;
+      }
+      alert(resultado.error || 'Não foi possível apagar o item.');
+    });
+  };
+
   return (
     <section className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
       
@@ -66,6 +108,7 @@ export default function ListaProdutosAdmin({
         onSelecionarTodos={handleSelecionarTodos}
         qtdSelecionados={selecionados.length}
         onAlterarStatus={handleAlterarStatusEmLote}
+        onExcluirSelecionados={handleExcluirSelecionados}
         isPending={isPending}
       />
 
@@ -92,6 +135,9 @@ export default function ListaProdutosAdmin({
                 produto={produto}
                 isSelecionado={selecionados.includes(produto.id)}
                 onToggleSelect={() => handleToggleSelect(produto.id)}
+                onAlternarStatus={() => handleAlternarStatusProduto(produto.id, produto.disponivel)}
+                onExcluir={() => handleExcluirProduto(produto.id, produto.nome)}
+                isPending={isPending}
               />
             ))
           )}

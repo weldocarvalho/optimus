@@ -3,6 +3,7 @@ import React from 'react';
 import { obterMetricasGrowthDoDia } from '@/actions/adminMetricas';
 import { CardsPerformanceGrowth } from '@/components/metricas/CardsPerformanceGrowth';
 import { GraficoFunilGrowth } from '@/components/metricas/GraficoFunilGrowth';
+import { MockMetricasMetaAds } from '@/components/metricas/MockMetricasMetaAds';
 import { AdminNavHeader } from '@/components/admin/AdminNavHeader';
 
 export const revalidate = 0; // Desativa cache para garantir dados financeiros frescos em tempo real
@@ -21,6 +22,7 @@ export default async function PainelMetricasAdmin() {
 
         {/* GRÁFICO DO FUNIL DE CONVERSÃO DO TRÁFEGO */}
         <GraficoFunilGrowth dados={dadosGrowth} />
+        <MockMetricasMetaAds />
 
       </div>
     </div>

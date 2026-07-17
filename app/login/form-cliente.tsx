@@ -11,9 +11,9 @@ function BotaoSubmit() {
     <button
       type="submit"
       disabled={pending}
-      className="w-full py-4 px-6 rounded-2xl bg-[#E16349] text-white font-medium tracking-wide transition-all duration-300 shadow-[0_4px_12px_rgba(225,99,73,0.2)] hover:shadow-[0_6px_20px_rgba(225,99,73,0.3)] hover:bg-[#d0553b] active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none text-sm uppercase"
+      className="ui-button-primary"
     >
-      {pending ? 'Autenticando...' : 'Acessar Centro de Comando'}
+      {pending ? 'Autenticando...' : 'ACESSAR PAINEL'}
     </button>
   )
 }
@@ -26,20 +26,20 @@ export function FormLogin() {
   return (
     <div className="space-y-6">
       {erro && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-100 text-red-600 text-xs font-medium tracking-wide text-center">
+        <div className="ui-feedback-error">
           {erro}
         </div>
       )}
 
       {status === 'link-magico-enviado' && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs font-medium tracking-wide text-center">
+        <div className="ui-feedback-success">
           Link mágico enviado. Verifique seu e-mail.
         </div>
       )}
 
       <form action={login} className="space-y-4">
         <div className="space-y-2">
-          <label className="text-xs uppercase tracking-widest text-[#1A1A1A] font-semibold block">
+          <label className="ui-label">
             E-mail Corporativo
           </label>
           <input
@@ -47,12 +47,12 @@ export function FormLogin() {
             name="email"
             required
             placeholder="gestor@restaurante.com"
-            className="w-full px-5 py-4 rounded-2xl bg-[#F3F3F3] text-[#1A1A1A] text-sm font-normal border border-[#E1E1E1] focus:border-[#E16349] focus:bg-white outline-none transition-all duration-300 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
+            className="ui-input"
           />
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs uppercase tracking-widest text-[#1A1A1A] font-semibold block">
+          <label className="ui-label">
             Senha de Acesso
           </label>
           <input
@@ -60,7 +60,7 @@ export function FormLogin() {
             name="password"
             required
             placeholder="••••••••"
-            className="w-full px-5 py-4 rounded-2xl bg-[#F3F3F3] text-[#1A1A1A] text-sm font-normal border border-[#E1E1E1] focus:border-[#E16349] focus:bg-white outline-none transition-all duration-300 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
+            className="ui-input"
           />
         </div>
 
@@ -79,7 +79,7 @@ export function FormLogin() {
       </div>
 
       <form action={solicitarLinkMagico} className="space-y-3">
-        <label className="text-xs uppercase tracking-widest text-[#1A1A1A] font-semibold block">
+        <label className="ui-label">
           Entrar com link mágico
         </label>
         <input
@@ -87,11 +87,11 @@ export function FormLogin() {
           name="email"
           required
           placeholder="gestor@restaurante.com"
-          className="w-full px-5 py-4 rounded-2xl bg-[#F3F3F3] text-[#1A1A1A] text-sm font-normal border border-[#E1E1E1] focus:border-[#E16349] focus:bg-white outline-none transition-all duration-300 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
+          className="ui-input"
         />
         <button
           type="submit"
-          className="w-full py-4 px-6 rounded-2xl border border-[#E16349]/40 bg-white text-[#E16349] font-semibold tracking-wide transition-all duration-300 hover:bg-[#fff6f4] text-sm uppercase"
+          className="ui-button-secondary"
         >
           Receber link de acesso por e-mail
         </button>

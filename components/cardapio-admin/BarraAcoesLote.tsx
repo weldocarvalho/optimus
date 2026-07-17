@@ -6,10 +6,18 @@ interface BarraAcoesProps {
   onSelecionarTodos: () => void;
   qtdSelecionados: number;
   onAlterarStatus: (disponivel: boolean) => void;
+  onExcluirSelecionados: () => void;
   isPending: boolean;
 }
 
-export default function BarraAcoesLote({ todosSelecionados, onSelecionarTodos, qtdSelecionados, onAlterarStatus, isPending }: BarraAcoesProps) {
+export default function BarraAcoesLote({
+  todosSelecionados,
+  onSelecionarTodos,
+  qtdSelecionados,
+  onAlterarStatus,
+  onExcluirSelecionados,
+  isPending,
+}: BarraAcoesProps) {
   return (
     <div className="flex flex-col gap-3 border-b border-zinc-100 bg-[#F8F8F8]/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
       <div className="flex items-center gap-3">
@@ -30,6 +38,13 @@ export default function BarraAcoesLote({ todosSelecionados, onSelecionarTodos, q
         </button>
         <button onClick={() => onAlterarStatus(false)} disabled={isPending} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-zinc-600 hover:border-zinc-400 hover:text-zinc-800">
           Pausar Selecionados
+        </button>
+        <button
+          onClick={onExcluirSelecionados}
+          disabled={isPending}
+          className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-semibold text-red-600 hover:border-red-300 hover:bg-red-100"
+        >
+          Apagar Selecionados
         </button>
       </div>
     </div>

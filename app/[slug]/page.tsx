@@ -70,7 +70,8 @@ export default async function PaginaCardapioPublico({ params }: PaginaCardapioPr
       <ComponenteLojaHamburguer 
         restaurante={{
           id: restaurante.id,
-          nome: restaurante.nome
+          nome: restaurante.nome,
+          endereco: restaurante.endereco ?? null,
         }} 
         produtos={produtosNormalizados} 
       />

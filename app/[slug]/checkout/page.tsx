@@ -1,7 +1,7 @@
 // app/[slug]/checkout/page.tsx (Parte 1 de 2)
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -35,6 +35,32 @@ export default function TelaDeCheckoutDedicada() {
   const [carregandoPagamento, setCarregandoPagamento] = useState(false);
   const [dadosPix, setDadosPix] = useState<{ qr_code: string; qr_code_base64?: string; payment_id: string } | null>(null);
   const [urlCheckoutCartao, setUrlCheckoutCartao] = useState<string | null>(null);
+  const [enderecoLoja, setEnderecoLoja] = useState('Endereço do estabelecimento');
+
+  useEffect(() => {
+    let ativo = true;
+
+    const carregarResumoRestaurante = async () => {
+      try {
+        const resposta = await fetch(`/api/restaurantes/${slug}/resumo`, { cache: 'no-store' });
+        if (!resposta.ok) return;
+        const body = await resposta.json();
+        if (ativo && typeof body?.endereco === 'string' && body.endereco.trim()) {
+          setEnderecoLoja(body.endereco);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar endereço da loja:', error);
+      }
+    };
+
+    if (slug) {
+      void carregarResumoRestaurante();
+    }
+
+    return () => {
+      ativo = false;
+    };
+  }, [slug]);
 
   const formatarMoeda = (valor: number) => {
     return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -195,9 +221,19 @@ export default function TelaDeCheckoutDedicada() {
                     key={item.idUnico} 
                     className="bg-white border border-zinc-200/60 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-sm"
                   >
-                    <div className="w-12 h-12 rounded-xl bg-zinc-50 border border-zinc-200/60 flex items-center justify-center text-xs font-extrabold text-zinc-400 font-mono shrink-0 shadow-inner">
-                      {item.produto.nome.substring(0, 2).toUpperCase()}
-                    </div>
+                    {item.produto.imagem_url ? (
+                      <Image
+                        src={item.produto.imagem_url}
+                        alt={item.produto.nome}
+                        width={48}
+                        height={48}
+                        className="h-12 w-12 rounded-xl border border-zinc-200/60 object-cover shadow-inner"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-zinc-50 border border-zinc-200/60 flex items-center justify-center text-xs font-extrabold text-zinc-400 font-mono shrink-0 shadow-inner">
+                        {item.produto.nome.substring(0, 2).toUpperCase()}
+                      </div>
+                    )}
 
                     <div className="flex-1 min-w-0">
                       <h4 className="font-bold text-zinc-900 text-xs sm:text-sm truncate leading-tight">
@@ -249,7 +285,7 @@ export default function TelaDeCheckoutDedicada() {
                 <div className="p-4 space-y-4">
                   {abaEntregaAtiva === 'CEP' && <CampoCepEntrega cep={cep} onChangeCep={setCep} abaAtiva={abaEntregaAtiva} />}
                   {abaEntregaAtiva === 'GPS' && <BotaoLocalizacaoGps onCapturarLocalizacao={handleCapturarGps} />}
-                  {abaEntregaAtiva === 'RETIRADA' && <CartaoRetirada endereco="Av. Principal da Cidade, 1500 - Centro" />}
+                  {abaEntregaAtiva === 'RETIRADA' && <CartaoRetirada endereco={enderecoLoja} />}
 
                   {abaEntregaAtiva !== 'RETIRADA' && (
                     <FormularioEnderecoEntrega

@@ -10,7 +10,7 @@ import BarraCarrinhoFlutuante from './BarraCarrinhoFlutuante';
 import { useCarrinho } from './ContextoCarrinho';
 
 interface ComponenteLojaHamburguerProps {
-  restaurante: { id: string; nome: string };
+  restaurante: { id: string; nome: string; endereco: string | null };
   produtos: ItemCardapio[];
 }
 
@@ -31,7 +31,9 @@ export default function ComponenteLojaHamburguer({ restaurante, produtos }: Comp
             </button>
             <div className="leading-tight">
               <h1 className="font-thin text-base tracking-tight uppercase">{restaurante.nome}</h1>
-              <span className="text-[9px] font-thin tracking-[0.18em] text-white/90 uppercase">Hamburgueria</span>
+              <span className="text-[9px] font-thin tracking-[0.12em] text-[#FFC72C] uppercase">
+                {restaurante.endereco?.trim() || 'Endereço do estabelecimento'}
+              </span>
             </div>
           </div>
           <Link href={`/${slug}/checkout`} className="relative p-1" aria-label="Ver sacola">

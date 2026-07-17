@@ -219,7 +219,7 @@ export async function obterCardapioPorSlug(slug: string) {
   // 1. Busca primeiro o ID e nome do restaurante usando o slug da URL
   const { data: restaurante, error: erroRestaurante } = await supabase
     .from('restaurantes')
-    .select('id, nome, tipo')
+    .select('id, nome, tipo, endereco, logo_url')
     .eq('slug', slugNormalizado)
     .maybeSingle()
 

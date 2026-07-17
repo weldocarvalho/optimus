@@ -15,6 +15,7 @@ interface AbaDadosProps {
   preco: string;
   setPreco: (v: string) => void;
   fotoPreviewUrl: string;
+  nomeArquivoFoto: string;
   onSelecionarFoto: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
@@ -26,6 +27,7 @@ export function AbaDadosBasicos({
   preco,
   setPreco,
   fotoPreviewUrl,
+  nomeArquivoFoto,
   onSelecionarFoto
 }: AbaDadosProps) {
   return (
@@ -65,11 +67,23 @@ export function AbaDadosBasicos({
       </div>
       <div className="space-y-2">
         <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Foto do produto</label>
+        <div className="flex flex-wrap items-center gap-2">
+          <label
+            htmlFor="foto-produto-input"
+            className="inline-flex cursor-pointer items-center rounded-xl border border-zinc-300 bg-white px-3 py-2 text-[11px] font-semibold text-zinc-700 transition hover:border-zinc-400 hover:text-zinc-900"
+          >
+            Escolher arquivo
+          </label>
+          <span className="text-[11px] font-medium text-zinc-500">
+            {nomeArquivoFoto || 'Nenhum arquivo selecionado'}
+          </span>
+        </div>
         <input
+          id="foto-produto-input"
           type="file"
           accept="image/png,image/jpeg,image/webp"
           onChange={onSelecionarFoto}
-          className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349]"
+          className="hidden"
         />
         {fotoPreviewUrl && (
           <div className="w-24 h-24 overflow-hidden rounded-xl border border-zinc-200/60">
