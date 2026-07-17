@@ -179,6 +179,7 @@ export function AdminNavHeader({ activeTab, brandActions, showAccountActions = t
                 alt="Logo do restaurante"
                 width={44}
                 height={44}
+                unoptimized
                 className="h-11 w-11 rounded-full object-cover"
               />
             ) : (

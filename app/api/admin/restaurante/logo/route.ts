@@ -70,16 +70,20 @@ export async function POST(request: Request) {
 
     const { data: logoPublica } = supabaseAdmin.storage.from(BUCKET_LOGOS).getPublicUrl(caminhoLogo);
 
+    // Cache-busting: acrescenta um timestamp à URL para garantir que o browser
+    // e qualquer CDN recarreguem o arquivo mesmo quando o path físico é o mesmo.
+    const logoUrlComVersao = `${logoPublica.publicUrl}?v=${Date.now()}`;
+
     const { error: updateError } = await supabaseAdmin
       .from('restaurantes')
-      .update({ logo_url: logoPublica.publicUrl })
+      .update({ logo_url: logoUrlComVersao })
       .eq('id', perfil.restaurante_id);
 
     if (updateError) {
       return NextResponse.json({ error: `Falha ao salvar URL da logo: ${updateError.message}` }, { status: 500 });
     }
 
-    return NextResponse.json({ logo_url: logoPublica.publicUrl });
+    return NextResponse.json({ logo_url: logoUrlComVersao });
   } catch (error) {
     console.error('Erro ao atualizar logo do restaurante:', error);
     return NextResponse.json({ error: 'Erro interno ao atualizar logo.' }, { status: 500 });
