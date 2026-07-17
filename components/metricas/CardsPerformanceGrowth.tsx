@@ -19,48 +19,48 @@ export function CardsPerformanceGrowth({ dados }: CardsPerformanceGrowthProps) {
   };
 
   return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       
       {/* CARD 1: FATURAMENTO BRUTO */}
-      <div className="bg-white rounded-[24px] p-6 border border-zinc-200/60 shadow-sm shadow-zinc-300/20 select-none">
-        <span className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-400 block mb-1">
+      <div className="select-none rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
           Faturamento Líquido (Stripe)
         </span>
-        <h3 className="text-2xl font-extrabold tracking-tight text-[#1A1A1A] font-mono">
+        <h3 className="font-mono text-2xl font-bold tracking-tight text-[#1A1A1A]">
           {formatarMoeda(dados.faturamentoTotal)}
         </h3>
-        <span className="text-[11px] font-semibold text-zinc-400 block mt-2">
+        <span className="mt-2 block text-[11px] font-medium text-zinc-500">
           Dinheiro real processado hoje
         </span>
       </div>
 
       {/* CARD 2: CMV REAL DA FICHA TÉCNICA */}
-      <div className="bg-white rounded-[24px] p-6 border border-zinc-200/60 shadow-sm shadow-zinc-300/20 select-none">
+      <div className="select-none rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-400">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
             Custo de Mercadoria (CMV)
           </span>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-600 font-mono">
+          <span className="rounded-md bg-zinc-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-zinc-600">
             {percentualCmvDiario}% do faturamento
           </span>
         </div>
-        <h3 className="text-2xl font-extrabold tracking-tight text-zinc-700 font-mono mt-1">
+        <h3 className="mt-1 font-mono text-2xl font-bold tracking-tight text-zinc-700">
           {formatarMoeda(dados.custoInsumosTotal)}
         </h3>
-        <span className="text-[11px] font-semibold text-zinc-400 block mt-2">
+        <span className="mt-2 block text-[11px] font-medium text-zinc-500">
           Custo escoado do estoque de hoje
         </span>
       </div>
 
       {/* CARD 3: LUCRO OPERACIONAL DA MESA */}
-      <div className="bg-white rounded-[24px] p-6 border border-zinc-200/60 shadow-sm shadow-zinc-300/20 select-none">
-        <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#E16349] block mb-1">
+      <div className="select-none rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-widest text-[#E16349]">
           Margem de Contribuição Bruta
         </span>
-        <h3 className="text-2xl font-extrabold tracking-tight text-[#E16349] font-mono">
+        <h3 className="font-mono text-2xl font-bold tracking-tight text-[#E16349]">
           {formatarMoeda(dados.lucroOperacionalBruto)}
         </h3>
-        <span className="text-[11px] font-bold text-zinc-500 block mt-2">
+        <span className="mt-2 block text-[11px] font-medium text-zinc-500">
           Saldo real antes do CPA do Meta
         </span>
       </div>

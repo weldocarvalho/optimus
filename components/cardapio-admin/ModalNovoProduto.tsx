@@ -118,26 +118,27 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
   }
   
   return createPortal(
-    <div className="fixed inset-0 bg-zinc-950/20 backdrop-blur-md flex items-center justify-center p-4 z-50 transition-all duration-200">
-      <div className="bg-white rounded-[28px] border border-zinc-100 shadow-2xl shadow-zinc-400/40 w-full max-w-xl overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/30 p-4 backdrop-blur-sm transition-all duration-200">
+      <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-xl transform transition-all animate-in fade-in zoom-in-95 duration-150">
         
         {/* Cabeçalho do Modal */}
-        <div className="p-6 border-b border-[#F3F3F3] flex items-center justify-between">
+        <div className="flex items-center justify-between border-b border-zinc-100 p-5">
           <div>
-            <h2 className="text-sm font-extrabold tracking-tight text-[#1A1A1A]">Novo Hambúrguer & Configuração</h2>
-            <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider mt-0.5">Catálogo Geral & Engenharia Financeira</p>
+            <h2 className="text-sm font-bold tracking-tight text-[#1A1A1A]">Novo hambúrguer e configuração</h2>
+            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Catálogo geral e engenharia financeira</p>
           </div>
           <button 
             type="button" 
             onClick={onFechar} 
-            className="w-6 h-6 bg-[#F3F3F3] hover:bg-zinc-200 text-zinc-500 rounded-full flex items-center justify-center transition-colors text-[10px] font-bold"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-100 text-[10px] font-semibold text-zinc-500 transition hover:bg-zinc-200"
           >
             ✕
           </button>
         </div>
 
         {/* Sistema de Navegação Neomórfico por Abas */}
-        <div className="flex border-b border-[#F3F3F3] bg-[#F8F8F8] p-1 font-bold text-[11px] shrink-0">
+        <div className="shrink-0 overflow-x-auto border-b border-zinc-100 bg-[#F8F8F8] p-1 text-[11px] font-semibold">
+          <div className="flex min-w-[500px]">
           <button
             type="button"
             onClick={() => setAbaAtiva('DADOS')}
@@ -159,10 +160,11 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
           >
             Opcionais Adicionais
           </button>
+          </div>
         </div>
 
         {/* Corpo Dinâmico / Injeção das Abas */}
-        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-6">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6 p-5">
           <div className="min-h-[220px] flex flex-col">
             {abaAtiva === 'DADOS' && (
               <AbaDadosBasicos 
@@ -194,18 +196,18 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
           </div>
 
           {/* Rodapé Operacional com Feedback Visual de Carregamento */}
-          <div className="flex items-center gap-3 pt-2 border-t border-[#F3F3F3]">
+          <div className="flex items-center gap-3 border-t border-zinc-100 pt-2">
             <button 
               type="button" 
               onClick={onFechar} 
-              className="flex-1 py-3 bg-[#F3F3F3] text-zinc-500 font-bold text-xs rounded-[14px] hover:bg-zinc-200 transition-colors uppercase tracking-wider"
+              className="flex-1 rounded-xl bg-zinc-100 py-3 text-xs font-semibold uppercase tracking-wider text-zinc-600 hover:bg-zinc-200 transition-colors"
             >
               Cancelar
             </button>
             <button 
               type="submit" 
               disabled={isPending} 
-              className="flex-1 py-3 bg-[#E16349] text-white font-bold text-xs rounded-[14px] hover:bg-[#c8523a] shadow-sm disabled:opacity-50 transition-all uppercase tracking-wider"
+              className="flex-1 rounded-xl bg-[#E16349] py-3 text-xs font-semibold uppercase tracking-wider text-white hover:bg-[#c8523a] disabled:opacity-50 transition-all"
             >
               {isPending ? 'Sincronizando Ecossistema...' : 'Confirmar & Publicar'}
             </button>

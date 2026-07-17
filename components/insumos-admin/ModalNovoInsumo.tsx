@@ -41,25 +41,25 @@ export default function ModalNovoInsumo({ aberto, onFechar, onSalvar, isPending 
   };
 
   return (
-    <div className="fixed inset-0 bg-zinc-950/20 backdrop-blur-md flex items-center justify-center p-4 z-50 transition-all duration-200">
-      <div className="bg-white rounded-[28px] border border-zinc-100 shadow-2xl shadow-zinc-400/40 w-full max-w-md overflow-hidden">
-        <div className="p-6 border-b border-[#F3F3F3] flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/30 p-4 backdrop-blur-sm transition-all duration-200">
+      <div className="w-full max-w-md overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-zinc-100 p-5">
           <div>
-            <h2 className="text-sm font-extrabold tracking-tight text-[#1A1A1A]">Nova Matéria-Prima</h2>
-            <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider mt-0.5">Gestão de Custos</p>
+            <h2 className="text-sm font-bold tracking-tight text-[#1A1A1A]">Nova matéria-prima</h2>
+            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Gestão de custos</p>
           </div>
-          <button type="button" onClick={onFechar} className="w-6 h-6 bg-[#F3F3F3] hover:bg-zinc-200 text-zinc-500 rounded-full flex items-center justify-center transition-colors text-[10px] font-bold">✕</button>
+          <button type="button" onClick={onFechar} className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-100 text-[10px] font-semibold text-zinc-500 transition hover:bg-zinc-200">✕</button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 p-5">
           <div className="space-y-1">
-            <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Nome do Insumo</label>
+            <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Nome do insumo</label>
             <input type="text" required value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Queijo Cheddar Fatiado" className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349] focus:ring-1 focus:ring-[#E16349] placeholder-zinc-400" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Unidade de Medida</label>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Unidade de medida</label>
               <select value={unidade} onChange={(e) => handleUnidadeChange(e.target.value)} className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349] focus:ring-1 focus:ring-[#E16349] cursor-pointer">
                 <option value="un">Unidade (un)</option>
                 <option value="g">Grama (g)</option>
@@ -67,25 +67,25 @@ export default function ModalNovoInsumo({ aberto, onFechar, onSalvar, isPending 
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Custo Unitário (R$)</label>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Custo unitário (R$)</label>
               <input type="number" step="0.0001" required value={custo} onChange={(e) => setCusto(e.target.value)} placeholder="0,00" className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349] focus:ring-1 focus:ring-[#E16349] placeholder-zinc-400" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Estoque Inicial</label>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Estoque inicial</label>
               <input type="number" step="0.01" value={estoqueAtual} onChange={(e) => setEstoqueAtual(e.target.value)} placeholder="0" className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349] focus:ring-1 focus:ring-[#E16349] placeholder-zinc-400" />
             </div>
             <div className="space-y-1">
-              <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Alerta Mínimo</label>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Alerta mínimo</label>
               <input type="number" step="0.01" value={estoqueMinimo} onChange={(e) => setEstoqueMinimo(e.target.value)} placeholder="0" className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349] focus:ring-1 focus:ring-[#E16349] placeholder-zinc-400" />
             </div>
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <button type="button" onClick={onFechar} className="flex-1 py-2.5 bg-[#F3F3F3] text-zinc-500 font-bold text-xs rounded-[14px] hover:bg-zinc-200">Cancelar</button>
-            <button type="submit" disabled={isPending} className="flex-1 py-2.5 bg-[#E16349] text-white font-bold text-xs rounded-[14px] hover:bg-[#c8523a] shadow-sm disabled:opacity-50">{isPending ? 'Salvando...' : 'Salvar Insumo'}</button>
+            <button type="button" onClick={onFechar} className="flex-1 rounded-xl bg-zinc-100 py-2.5 text-xs font-semibold text-zinc-600 hover:bg-zinc-200">Cancelar</button>
+            <button type="submit" disabled={isPending} className="flex-1 rounded-xl bg-[#E16349] py-2.5 text-xs font-semibold text-white hover:bg-[#c8523a] disabled:opacity-50">{isPending ? 'Salvando...' : 'Salvar insumo'}</button>
           </div>
         </form>
       </div>

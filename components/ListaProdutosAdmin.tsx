@@ -58,7 +58,7 @@ export default function ListaProdutosAdmin({
   };
 
   return (
-    <div className="bg-white rounded-[24px] shadow-sm border border-zinc-200/40 overflow-hidden font-sans">
+    <section className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
       
       {/* BARRA DE OPERAÇÕES EM LOTE */}
       <BarraAcoesLote 
@@ -70,21 +70,21 @@ export default function ListaProdutosAdmin({
       />
 
       {/* VITRINE ADMINISTRATIVA DE ITENS */}
-      <div className="p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest">Hambúrgueres Ativos</h3>
+      <div className="space-y-4 p-4 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-500">Hambúrgueres ativos</h3>
           <button 
             type="button"
             onClick={() => setModalAberto(true)}
-            className="bg-[#E16349] hover:bg-[#c8523a] text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#E16349] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#c8523a]"
           >
-            ✕ Novo Hambúrguer
+            + Novo Hambúrguer
           </button>
         </div>
 
-        <div className="divide-y divide-zinc-100 max-h-[50vh] overflow-y-auto pr-1">
+        <div className="max-h-[55vh] divide-y divide-zinc-100 overflow-y-auto pr-1">
           {produtosIniciais.length === 0 ? (
-            <p className="text-xs text-zinc-400 text-center py-12 italic">Nenhum hambúrguer cadastrado no cardápio.</p>
+            <p className="py-12 text-center text-sm text-zinc-400">Nenhum hambúrguer cadastrado no cardápio.</p>
           ) : (
             produtosIniciais.map((produto) => (
               <CardProdutoAdmin 
@@ -104,6 +104,6 @@ export default function ListaProdutosAdmin({
         onFechar={() => setModalAberto(false)}
         insumosDisponiveis={insumosDisponiveis}
       />
-    </div>
+    </section>
   );
 }

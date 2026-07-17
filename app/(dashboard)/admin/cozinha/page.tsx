@@ -34,24 +34,24 @@ export default function PainelCozinhaAdmin() {
         
         <BarraNavegacaoCozinha />
 
-        <header className="flex items-center justify-between px-2 select-none">
+        <header className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between select-none">
           <div className="leading-tight">
-            <h1 className="text-xl font-extrabold tracking-tight text-[#1A1A1A]">Monitor de Produção</h1>
-            <span className="text-[11px] font-bold text-zinc-400 block mt-0.5">Fila de pedidos ativa em tempo real</span>
+            <h1 className="text-xl font-bold tracking-tight text-[#1A1A1A]">Monitor de produção</h1>
+            <span className="mt-0.5 block text-[11px] font-semibold text-zinc-500">Fila de pedidos ativa em tempo real</span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={executarReconciliacaoPedidos}
               disabled={sincronizando}
-              className="rounded-[12px] border border-zinc-200/80 bg-white px-3.5 py-2 text-[10px] font-extrabold uppercase tracking-widest text-zinc-500 transition-all duration-150 hover:bg-zinc-50 disabled:opacity-50 shadow-sm"
+              className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-50"
             >
               {sincronizando ? 'Sincronizando...' : 'Sincronizar'}
             </button>
             
-            <div className="flex items-center gap-2 bg-white border border-zinc-200/60 px-3 py-2 rounded-[12px] shadow-sm">
+            <div className="flex items-center gap-2 rounded-xl border border-zinc-300 bg-white px-3 py-2">
               <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-              <span className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400">Canal Ativo</span>
+              <span className="text-[9px] font-semibold uppercase tracking-widest text-zinc-500">Canal ativo</span>
             </div>
           </div>
         </header>

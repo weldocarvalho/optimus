@@ -14,17 +14,17 @@ interface ColunaEsteiraCozinhaProps {
 
 export function ColunaEsteiraCozinha({ titulo, pedidos, onAvancarStatus, isMutating }: ColunaEsteiraCozinhaProps) {
   return (
-    <div className="rounded-[24px] bg-white border border-zinc-200/60 p-4 shadow-sm shadow-zinc-300/20 flex flex-col gap-4">
+    <div className="flex flex-col gap-4 rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between border-b border-zinc-100 pb-2.5 px-1 select-none">
-        <span className="text-xs font-extrabold uppercase tracking-wider text-[#1A1A1A]">{titulo}</span>
-        <span className="rounded-[8px] bg-[#F3F3F3] border border-zinc-200/40 px-2 py-0.5 text-xs font-mono font-bold text-zinc-600">
+        <span className="text-xs font-semibold uppercase tracking-wider text-[#1A1A1A]">{titulo}</span>
+        <span className="rounded-[8px] border border-zinc-200/60 bg-[#F3F3F3] px-2 py-0.5 text-xs font-mono font-semibold text-zinc-600">
           {pedidos.length}
         </span>
       </div>
       <div className="flex flex-col gap-4 overflow-y-auto max-h-[65vh] min-h-[120px] p-0.5">
         {pedidos.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center py-10 text-center">
-            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Esteira Limpa</span>
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400">Esteira limpa</span>
           </div>
         ) : (
           pedidos.map((pedido) => (

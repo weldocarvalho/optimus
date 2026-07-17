@@ -70,20 +70,20 @@ export function CardPedidoCozinha({ pedido, onAvancarStatus, isMutating }: CardP
   };
 
   return (
-    <div className="flex flex-col justify-between rounded-[16px] border border-zinc-200/60 bg-white p-4 text-[#1A1A1A] shadow-sm select-none">
+    <div className="flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-4 text-[#1A1A1A] shadow-sm select-none">
       <div>
         <div className="mb-2.5 flex items-center justify-between">
-          <span className="text-[10px] font-mono font-bold tracking-wider text-zinc-400">
+          <span className="text-[10px] font-mono font-semibold tracking-wider text-zinc-500">
             #{pedido.id.substring(0, 8).toUpperCase()}
           </span>
-          <span className="text-xs font-bold text-zinc-400">
+          <span className="text-xs font-semibold text-zinc-500">
             {formatarHora(pedido.created_at)}
           </span>
         </div>
 
         <div className="mb-3 border-b border-zinc-100 pb-2">
-          <h3 className="text-xs font-extrabold tracking-tight text-[#1A1A1A] uppercase">{pedido.dados_cliente?.nome}</h3>
-          <p className="text-[11px] font-bold text-zinc-400 mt-0.5">{pedido.dados_cliente?.telefone}</p>
+          <h3 className="text-xs font-bold tracking-tight text-[#1A1A1A] uppercase">{pedido.dados_cliente?.nome}</h3>
+          <p className="mt-0.5 text-[11px] font-semibold text-zinc-500">{pedido.dados_cliente?.telefone}</p>
         </div>
 
         <div className="space-y-2">
@@ -92,7 +92,7 @@ export function CardPedidoCozinha({ pedido, onAvancarStatus, isMutating }: CardP
               <span className="text-zinc-700 font-semibold leading-tight">
                 {item.item_cardapio.nome}
               </span>
-              <span className="ml-4 font-mono font-bold text-zinc-500 bg-[#F3F3F3] border border-zinc-200/40 px-1.5 py-0.5 rounded text-[10px]">
+              <span className="ml-4 rounded border border-zinc-200/40 bg-[#F3F3F3] px-1.5 py-0.5 text-[10px] font-mono font-semibold text-zinc-500">
                 {item.quantidade}x
               </span>
             </div>
@@ -105,12 +105,12 @@ export function CardPedidoCozinha({ pedido, onAvancarStatus, isMutating }: CardP
           <button
             onClick={() => onAvancarStatus(pedido.id, proximoStatus)}
             disabled={isMutating}
-            className={`w-full rounded-[12px] py-2.5 text-xs font-bold tracking-wide uppercase transition-all duration-150 disabled:opacity-50 shadow-sm ${obterEstiloBotaoAcao(pedido.status)}`}
+            className={`w-full rounded-xl py-2.5 text-xs font-semibold tracking-wide uppercase transition-all duration-150 disabled:opacity-50 ${obterEstiloBotaoAcao(pedido.status)}`}
           >
             {isMutating ? 'Processando...' : obterTextoBotao(pedido.status)}
           </button>
         ) : (
-          <div className="w-full rounded-[12px] bg-zinc-100 py-2.5 text-center text-xs font-bold tracking-wide text-zinc-400 uppercase">
+          <div className="w-full rounded-xl bg-zinc-100 py-2.5 text-center text-xs font-semibold tracking-wide text-zinc-400 uppercase">
             Despachado
           </div>
         )}

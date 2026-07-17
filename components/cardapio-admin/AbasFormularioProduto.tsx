@@ -31,28 +31,28 @@ export function AbaDadosBasicos({
   return (
     <div className="space-y-4 flex-1">
       <div className="space-y-1">
-        <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Nome do Hambúrguer</label>
+        <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Nome do hambúrguer</label>
         <input 
           type="text" 
           required 
           value={nome} 
           onChange={(e) => setNome(e.target.value)} 
           placeholder="Ex: Cheddar Bacon Supremo" 
-          className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E52521]" 
+          className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349]" 
         />
       </div>
       <div className="space-y-1">
-        <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Descrição do Cardápio</label>
+        <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Descrição do cardápio</label>
         <textarea 
           value={descricao} 
           onChange={(e) => setDescricao(e.target.value)} 
           placeholder="Ex: Blend artesanal de 150g, muito cheddar derretido..." 
           rows={3} 
-          className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E52521] resize-none" 
+          className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349] resize-none" 
         />
       </div>
       <div className="space-y-1">
-        <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Preço de Venda (R$)</label>
+        <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Preço de venda (R$)</label>
         <input 
           type="number" 
           step="0.01" 
@@ -60,16 +60,16 @@ export function AbaDadosBasicos({
           value={preco} 
           onChange={(e) => setPreco(e.target.value)} 
           placeholder="0,00" 
-          className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E52521]" 
+          className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349]" 
         />
       </div>
       <div className="space-y-2">
-        <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Foto do Produto</label>
+        <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Foto do produto</label>
         <input
           type="file"
           accept="image/png,image/jpeg,image/webp"
           onChange={onSelecionarFoto}
-          className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E52521]"
+          className="w-full bg-[#F3F3F3]/60 border border-transparent rounded-[14px] px-3.5 py-2 text-xs font-medium focus:outline-none focus:bg-white focus:border-[#E16349]"
         />
         {fotoPreviewUrl && (
           <div className="w-24 h-24 overflow-hidden rounded-xl border border-zinc-200/60">
@@ -98,7 +98,7 @@ interface AbaFichaProps {
 export function AbaFichaTecnica({ insumosDisponiveis, quantidadesFicha, onFichaChange }: AbaFichaProps) {
   return (
     <div className="space-y-2 flex-1">
-      <p className="text-[11px] text-zinc-400 font-medium mb-2">Gasto físico de matéria-prima para cálculo automático de CMV.</p>
+      <p className="mb-2 text-[11px] font-medium text-zinc-500">Gasto físico de matéria-prima para cálculo automático de CMV.</p>
       <div className="bg-[#F8F8F8] rounded-[20px] border border-zinc-100 p-3 space-y-1.5 max-h-64 overflow-y-auto">
         {insumosDisponiveis.map((insumo) => (
           <div key={insumo.id} className="flex items-center justify-between p-2 rounded-xl bg-white border border-transparent hover:border-zinc-200/50 transition-all gap-4">
@@ -112,7 +112,7 @@ export function AbaFichaTecnica({ insumosDisponiveis, quantidadesFicha, onFichaC
                 placeholder="0" 
                 value={quantidadesFicha[insumo.id] || ''} 
                 onChange={(e) => onFichaChange(insumo.id, e.target.value)} 
-                className="w-20 text-center bg-[#F3F3F3] border border-transparent rounded-lg py-1 text-xs font-bold focus:outline-none focus:bg-white focus:border-[#E52521]" 
+                className="w-20 text-center bg-[#F3F3F3] border border-transparent rounded-lg py-1 text-xs font-semibold focus:outline-none focus:bg-white focus:border-[#E16349]" 
               />
               <span className="text-[10px] text-zinc-400 font-bold uppercase w-6">{insumo.unidade_medida}</span>
             </div>
@@ -137,14 +137,14 @@ interface AbaAdicionaisProps {
 export function AbaAdicionaisOpcionais({ adicionais, novoNome, setNovoNome, novoPreco, setNovoPreco, onAdicionar, onRemover }: AbaAdicionaisProps) {
   return (
     <div className="space-y-4 flex-1">
-      <p className="text-[11px] text-zinc-400 font-medium">Cadastre os adicionais que o cliente final poderá escolher no cardápio.</p>
+      <p className="text-[11px] font-medium text-zinc-500">Cadastre os adicionais que o cliente final poderá escolher no cardápio.</p>
       <div className="flex gap-2 items-center bg-[#F8F8F8] p-2 rounded-2xl border border-zinc-100">
         <input 
           type="text" 
           value={novoNome} 
           onChange={(e) => setNovoNome(e.target.value)} 
           placeholder="Ex: Carne Adicional 150g" 
-          className="flex-1 bg-white border border-zinc-200/60 rounded-xl px-3 py-1.5 text-xs font-medium focus:outline-none focus:border-[#E52521]" 
+          className="flex-1 bg-white border border-zinc-200/60 rounded-xl px-3 py-1.5 text-xs font-medium focus:outline-none focus:border-[#E16349]" 
         />
         <input 
           type="number" 
@@ -152,7 +152,7 @@ export function AbaAdicionaisOpcionais({ adicionais, novoNome, setNovoNome, novo
           value={novoPreco} 
           onChange={(e) => setNovoPreco(e.target.value)} 
           placeholder="R$ 0,00" 
-          className="w-24 bg-white border border-zinc-200/60 rounded-xl px-2 py-1.5 text-xs text-center font-bold focus:outline-none focus:border-[#E52521]" 
+          className="w-24 bg-white border border-zinc-200/60 rounded-xl px-2 py-1.5 text-xs text-center font-semibold focus:outline-none focus:border-[#E16349]" 
         />
         <button type="button" onClick={onAdicionar} className="bg-zinc-900 text-white font-bold text-xs px-3 py-2 rounded-xl hover:bg-zinc-800 transition-colors shrink-0">
           Adicionar

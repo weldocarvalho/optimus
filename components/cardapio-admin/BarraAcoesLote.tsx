@@ -11,7 +11,7 @@ interface BarraAcoesProps {
 
 export default function BarraAcoesLote({ todosSelecionados, onSelecionarTodos, qtdSelecionados, onAlterarStatus, isPending }: BarraAcoesProps) {
   return (
-    <div className="px-6 py-4 bg-[#F8F8F8]/60 border-b border-[#F3F3F3] flex items-center justify-between gap-4">
+    <div className="flex flex-col gap-3 border-b border-zinc-100 bg-[#F8F8F8]/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
       <div className="flex items-center gap-3">
         <input 
           type="checkbox" 
@@ -19,16 +19,16 @@ export default function BarraAcoesLote({ todosSelecionados, onSelecionarTodos, q
           onChange={onSelecionarTodos}
           className="w-4 h-4 rounded-md border-zinc-300 text-[#E16349] focus:ring-[#E16349] cursor-pointer accent-[#E16349]"
         />
-        <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
+        <span className="text-xs font-semibold uppercase tracking-wider text-zinc-600">
           {qtdSelecionados > 0 ? `${qtdSelecionados} selecionados` : 'Selecionar Todos'}
         </span>
       </div>
 
-      <div className={`flex items-center gap-2 transition-all ${qtdSelecionados > 0 ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-        <button onClick={() => onAlterarStatus(true)} disabled={isPending} className="px-3 py-1.5 bg-zinc-950 text-white font-bold text-[11px] rounded-lg hover:bg-zinc-800">
+      <div className={`flex flex-wrap items-center gap-2 transition-all ${qtdSelecionados > 0 ? 'opacity-100' : 'pointer-events-none opacity-40'}`}>
+        <button onClick={() => onAlterarStatus(true)} disabled={isPending} className="rounded-lg bg-zinc-900 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-zinc-800">
           Ativar Selecionados
         </button>
-        <button onClick={() => onAlterarStatus(false)} disabled={isPending} className="px-3 py-1.5 bg-white text-zinc-500 border border-zinc-200 font-bold text-[11px] rounded-lg hover:text-zinc-800 hover:border-zinc-300">
+        <button onClick={() => onAlterarStatus(false)} disabled={isPending} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-zinc-600 hover:border-zinc-400 hover:text-zinc-800">
           Pausar Selecionados
         </button>
       </div>
