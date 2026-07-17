@@ -17,7 +17,7 @@ export function GraficoFunilGrowth({ dados }: GraficoFunilGrowthProps) {
       
       {/* CABEÇALHO INTERNO */}
       <div className="border-b border-zinc-100 pb-3">
-        <h3 className="text-base font-black uppercase tracking-wider text-[#1A1A1A]">
+        <h3 className="text-base font-extrabold uppercase tracking-wider text-[#1A1A1A]">
           Funil de Vendas Líquido
         </h3>
         <span className="text-[11px] font-bold text-zinc-500 block mt-0.5">
@@ -31,10 +31,10 @@ export function GraficoFunilGrowth({ dados }: GraficoFunilGrowthProps) {
         {/* CAMADA 1: TOPO (VISITAS) - LARGURA PLENA */}
         <div className="w-full">
           <div className="bg-[#F3F3F3] border border-zinc-200/60 rounded-t-[16px] rounded-b-[4px] p-4 flex items-center justify-between shadow-sm">
-            <span className="tracking-tight uppercase text-[11px] font-black text-[#1A1A1A]">
+            <span className="tracking-tight uppercase text-[11px] font-extrabold text-[#1A1A1A]">
               1. Visitas ao Cardápio
             </span>
-            <span className="font-mono text-zinc-900 font-black bg-zinc-200/60 px-2.5 py-0.5 rounded-[8px] text-xs">
+            <span className="font-mono text-zinc-900 font-extrabold bg-zinc-200/60 px-2.5 py-0.5 rounded-[8px] text-xs">
               {dados.visitas} acessos
             </span>
           </div>
@@ -43,10 +43,10 @@ export function GraficoFunilGrowth({ dados }: GraficoFunilGrowthProps) {
         {/* CAMADA 2: MEIO (CHECKOUTS) - SIMETRIA LATERAL VIA ENVELOPE (PX-4) */}
         <div className="px-4 w-full">
           <div className="bg-[#EBF1F5] border border-blue-200/60 text-blue-900 rounded-[4px] p-4 flex items-center justify-between shadow-sm">
-            <span className="tracking-tight uppercase text-[11px] font-black text-blue-950">
+            <span className="tracking-tight uppercase text-[11px] font-extrabold text-blue-950">
               2. Intenções de Compra
             </span>
-            <span className="font-mono text-blue-950 font-black bg-blue-200/50 px-2.5 py-0.5 rounded-[8px] text-xs">
+            <span className="font-mono text-blue-950 font-extrabold bg-blue-200/50 px-2.5 py-0.5 rounded-[8px] text-xs">
               {dados.checkouts} ({taxaCheckouts}%)
             </span>
           </div>
@@ -61,11 +61,11 @@ export function GraficoFunilGrowth({ dados }: GraficoFunilGrowthProps) {
                 : 'bg-[#FCECE9] border-[#F4CDA5] text-[#A63A26]'
             }`}
           >
-            <span className="tracking-tight uppercase text-[11px] font-black">
+            <span className="tracking-tight uppercase text-[11px] font-extrabold">
               3. Pedidos Pagos (Stripe)
             </span>
             <span 
-              className={`font-mono font-black px-2.5 py-0.5 rounded-[8px] text-xs ${
+              className={`font-mono font-extrabold px-2.5 py-0.5 rounded-[8px] text-xs ${
                 isConversaoSaudavel ? 'bg-[#D3E5D9]' : 'bg-[#F7D3CB]'
               }`}
             >
@@ -80,10 +80,10 @@ export function GraficoFunilGrowth({ dados }: GraficoFunilGrowthProps) {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 pt-2 border-t border-zinc-100 text-xs">
         
         <div className="bg-white rounded-[16px] p-4 border border-zinc-200/80 shadow-sm">
-          <span className="text-[11px] font-black uppercase tracking-wider text-zinc-500 block mb-1">
+          <span className="text-[11px] font-extrabold uppercase tracking-wider text-zinc-500 block mb-1">
             Abandono no Checkout
           </span>
-          <span className="text-xl font-black font-mono text-[#E16349] block">
+          <span className="text-xl font-extrabold font-mono text-[#E16349] block">
             {dados.taxaAbandonoCarrinho}%
           </span>
           <span className="text-[12px] font-bold text-[#1A1A1A] block mt-1 leading-snug">
@@ -92,11 +92,11 @@ export function GraficoFunilGrowth({ dados }: GraficoFunilGrowthProps) {
         </div>
 
         <div className="bg-white rounded-[16px] p-4 border border-zinc-200/80 shadow-sm">
-          <span className="text-[11px] font-black uppercase tracking-wider text-zinc-500 block mb-1">
+          <span className="text-[11px] font-extrabold uppercase tracking-wider text-zinc-500 block mb-1">
             Conversão Geral do Tráfego
           </span>
           <span 
-            className={`text-xl font-black font-mono block ${
+            className={`text-xl font-extrabold font-mono block ${
               isConversaoSaudavel ? 'text-[#4A7856]' : 'text-zinc-700'
             }`}
           >

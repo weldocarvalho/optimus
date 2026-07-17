@@ -58,7 +58,7 @@ export default function CardProdutoAdmin({ produto, isSelecionado, onToggleSelec
       <div className="flex items-center justify-between sm:justify-end shrink-0 self-center sm:pl-4">
         <div className="text-left sm:text-right">
           <span className="text-[9px] text-zinc-400 block font-bold uppercase tracking-wider">Venda</span>
-          <span className="font-black text-[#1A1A1A] text-sm sm:text-base">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(produto.preco_venda))}</span>
+          <span className="font-extrabold text-[#1A1A1A] text-sm sm:text-base">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(produto.preco_venda))}</span>
         </div>
       </div>
     </div>

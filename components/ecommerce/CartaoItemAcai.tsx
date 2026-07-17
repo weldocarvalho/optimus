@@ -46,7 +46,7 @@ export function CartaoItemAcai({ produto }: CartaoItemAcaiProps) {
       </div>
 
       <div className="flex-1 min-w-0 pr-1">
-        <h3 className="font-black text-zinc-950 tracking-tight text-sm sm:text-base leading-tight">
+        <h3 className="font-extrabold text-zinc-950 tracking-tight text-sm sm:text-base leading-tight">
           {produto.nome}
         </h3>
         <p className="text-zinc-400 text-xs mt-1.5 line-clamp-2 leading-relaxed font-bold">
@@ -54,7 +54,7 @@ export function CartaoItemAcai({ produto }: CartaoItemAcaiProps) {
         </p>
         
         <div className="flex items-center justify-between mt-4">
-          <span className="font-black text-[#3B0D2C] text-sm sm:text-base font-mono tracking-tight">
+          <span className="font-extrabold text-[#3B0D2C] text-sm sm:text-base font-mono tracking-tight">
             {formatarMoeda(produto.preco_venda)}
           </span>
 
@@ -62,14 +62,14 @@ export function CartaoItemAcai({ produto }: CartaoItemAcaiProps) {
             <div className="flex items-center bg-[#F3F3F3] rounded-[12px] p-1 gap-2.5 border border-zinc-200/30">
               <button 
                 onClick={() => removerItem(produto.id)} 
-                className="w-6 h-6 rounded-[8px] bg-white flex items-center justify-center text-xs font-black text-zinc-600 hover:bg-zinc-100 shadow-sm"
+                className="w-6 h-6 rounded-[8px] bg-white flex items-center justify-center text-xs font-extrabold text-zinc-600 hover:bg-zinc-100 shadow-sm"
               >
                 -
               </button>
-              <span className="text-xs font-black px-0.5 text-zinc-800 font-mono">{qtd}</span>
+              <span className="text-xs font-extrabold px-0.5 text-zinc-800 font-mono">{qtd}</span>
               <button 
                 onClick={() => adicionarItem(produtoNormalizado)} 
-                className="w-6 h-6 rounded-[8px] bg-[#3B0D2C] hover:bg-[#2C0A25] flex items-center justify-center text-xs font-black text-white shadow-sm transition-colors"
+                className="w-6 h-6 rounded-[8px] bg-[#3B0D2C] hover:bg-[#2C0A25] flex items-center justify-center text-xs font-extrabold text-white shadow-sm transition-colors"
               >
                 +
               </button>
@@ -77,7 +77,7 @@ export function CartaoItemAcai({ produto }: CartaoItemAcaiProps) {
           ) : (
             <button 
               onClick={() => adicionarItem(produtoNormalizado)}
-              className="text-[#3B0D2C] bg-[#F9ECEF] border border-[#7D1A52]/10 hover:bg-[#f2d8e0] font-black text-[11px] px-4 py-2.5 rounded-tl-[14px] rounded-br-[14px] rounded-tr-[6px] rounded-bl-[6px] border-b-[2px] border-b-[#7D1A52]/20 active:scale-95 transition-all uppercase tracking-wider"
+              className="text-[#3B0D2C] bg-[#F9ECEF] border border-[#7D1A52]/10 hover:bg-[#f2d8e0] font-extrabold text-[11px] px-4 py-2.5 rounded-tl-[14px] rounded-br-[14px] rounded-tr-[6px] rounded-bl-[6px] border-b-[2px] border-b-[#7D1A52]/20 active:scale-95 transition-all uppercase tracking-wider"
             >
               Adicionar
             </button>

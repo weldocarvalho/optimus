@@ -72,7 +72,7 @@ export default function ListaProdutosAdmin({
       {/* VITRINE ADMINISTRATIVA DE ITENS */}
       <div className="p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest">Hambúrgueres Ativos</h3>
+          <h3 className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest">Hambúrgueres Ativos</h3>
           <button 
             type="button"
             onClick={() => setModalAberto(true)}

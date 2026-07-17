@@ -161,7 +161,7 @@ export default function TelaDeCheckoutDedicada() {
             </svg>
           </button>
           <div>
-            <h1 className="text-base font-black tracking-tight text-zinc-900">
+            <h1 className="text-base font-extrabold tracking-tight text-zinc-900">
               {etapaCheckout === 'SACOLA'
                 ? 'Revisar Sacola'
                 : etapaCheckout === 'ENTREGA'
@@ -187,7 +187,7 @@ export default function TelaDeCheckoutDedicada() {
               {itens.length === 0 ? (
                 <div className="text-center py-20 text-zinc-400 italic text-xs font-medium bg-zinc-50 rounded-2xl border border-dashed border-zinc-200 p-4">
                   Sua sacola está limpa. Adicione itens para prosseguir ao pagamento.
-                  <Link href={`/${slug}`} className="block mt-4 text-xs font-black uppercase tracking-wider text-zinc-900 underline">Voltar à Loja</Link>
+                  <Link href={`/${slug}`} className="block mt-4 text-xs font-extrabold uppercase tracking-wider text-zinc-900 underline">Voltar à Loja</Link>
                 </div>
               ) : (
                 itens.map((item) => (
@@ -195,7 +195,7 @@ export default function TelaDeCheckoutDedicada() {
                     key={item.idUnico} 
                     className="bg-white border border-zinc-200/60 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-sm"
                   >
-                    <div className="w-12 h-12 rounded-xl bg-zinc-50 border border-zinc-200/60 flex items-center justify-center text-xs font-black text-zinc-400 font-mono shrink-0 shadow-inner">
+                    <div className="w-12 h-12 rounded-xl bg-zinc-50 border border-zinc-200/60 flex items-center justify-center text-xs font-extrabold text-zinc-400 font-mono shrink-0 shadow-inner">
                       {item.produto.nome.substring(0, 2).toUpperCase()}
                     </div>
 
@@ -212,15 +212,15 @@ export default function TelaDeCheckoutDedicada() {
                       <button 
                         type="button"
                         onClick={() => removerItem(item.idUnico)} 
-                        className="w-6 h-6 rounded-lg bg-white border border-zinc-200/40 flex items-center justify-center text-xs font-black text-zinc-600 hover:bg-zinc-100 shadow-sm transition-colors"
+                        className="w-6 h-6 rounded-lg bg-white border border-zinc-200/40 flex items-center justify-center text-xs font-extrabold text-zinc-600 hover:bg-zinc-100 shadow-sm transition-colors"
                       >
                         -
                       </button>
-                      <span className="text-xs font-black px-1.5 text-zinc-900 font-mono">{item.quantidade}</span>
+                      <span className="text-xs font-extrabold px-1.5 text-zinc-900 font-mono">{item.quantidade}</span>
                       <button 
                         type="button"
                         onClick={() => adicionarItem(item.produto, item.adicionaisEscolhidos)} 
-                        className="w-6 h-6 rounded-lg bg-zinc-900 hover:bg-zinc-800 flex items-center justify-center text-xs font-black text-white shadow-sm transition-colors"
+                        className="w-6 h-6 rounded-lg bg-zinc-900 hover:bg-zinc-800 flex items-center justify-center text-xs font-extrabold text-white shadow-sm transition-colors"
                       >
                         +
                       </button>
@@ -366,7 +366,7 @@ export default function TelaDeCheckoutDedicada() {
           <div className="flex items-center justify-between">
             <div>
               <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Subtotal Líquido</span>
-              <span className="text-xl font-black text-zinc-900 font-mono tracking-tight">
+              <span className="text-xl font-extrabold text-zinc-900 font-mono tracking-tight">
                 {formatarMoeda(valorTotal)}
               </span>
             </div>
@@ -381,7 +381,7 @@ export default function TelaDeCheckoutDedicada() {
             type="button"
             onClick={handleAcaoPrincipal}
             disabled={itens.length === 0}
-            className="w-full py-4 px-6 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all duration-200 active:scale-[0.99] shadow-sm disabled:opacity-30 disabled:pointer-events-none"
+            className="w-full py-4 px-6 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-extrabold text-xs uppercase tracking-wider transition-all duration-200 active:scale-[0.99] shadow-sm disabled:opacity-30 disabled:pointer-events-none"
           >
             {etapaCheckout === 'SACOLA'
               ? 'Avançar para Entrega'

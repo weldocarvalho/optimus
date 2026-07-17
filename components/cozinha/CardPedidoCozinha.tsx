@@ -82,7 +82,7 @@ export function CardPedidoCozinha({ pedido, onAvancarStatus, isMutating }: CardP
         </div>
 
         <div className="mb-3 border-b border-zinc-100 pb-2">
-          <h3 className="text-xs font-black tracking-tight text-[#1A1A1A] uppercase">{pedido.dados_cliente?.nome}</h3>
+          <h3 className="text-xs font-extrabold tracking-tight text-[#1A1A1A] uppercase">{pedido.dados_cliente?.nome}</h3>
           <p className="text-[11px] font-bold text-zinc-400 mt-0.5">{pedido.dados_cliente?.telefone}</p>
         </div>
 

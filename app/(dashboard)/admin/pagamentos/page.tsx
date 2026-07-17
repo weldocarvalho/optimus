@@ -1,5 +1,4 @@
 import { AdminNavHeader } from '@/components/admin/AdminNavHeader';
-import { BotaoLogout } from '@/app/logout/logout';
 import {
   obterIntegracaoMercadoPagoPorRestauranteId,
   obterRestauranteIdDoGestorLogado,
@@ -22,11 +21,11 @@ export default async function PainelPagamentosAdmin() {
   return (
     <div className="min-h-screen bg-[#F3F3F3] text-[#1A1A1A] font-sans antialiased flex items-start justify-center p-4 sm:p-8 md:py-12">
       <div className="w-full max-w-4xl space-y-6">
-        <AdminNavHeader activeTab="pagamentos" brandActions={<BotaoLogout />} />
+        <AdminNavHeader activeTab="pagamentos" />
 
         <section className="bg-white rounded-[24px] p-6 shadow-sm shadow-zinc-300/40 space-y-5">
           <div className="space-y-1">
-            <h1 className="text-2xl font-black tracking-tight text-zinc-900">Integrações de pagamento</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900">Integrações de pagamento</h1>
             <p className="text-sm text-zinc-500">
               Conecte a conta do Mercado Pago do estabelecimento para processar PIX e cartão com o dinheiro caindo na conta do lojista.
             </p>

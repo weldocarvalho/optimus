@@ -23,7 +23,7 @@ export default function BarraCarrinhoFlutuante({ ehAcai = false }: BarraProps) {
 
   const corBotaoQuantidade = ehAcai
     ? 'bg-[#2C0A21] text-purple-200 border border-[#7D1A52]/20'
-    : 'bg-zinc-100 text-zinc-800 border border-zinc-200 font-mono font-black';
+    : 'bg-zinc-100 text-zinc-800 border border-zinc-200 font-mono font-extrabold';
 
   const corBotaoAcao = ehAcai
     ? 'bg-[#7D1A52] hover:bg-[#631440] text-white'
@@ -40,12 +40,12 @@ export default function BarraCarrinhoFlutuante({ ehAcai = false }: BarraProps) {
     <div className="fixed bottom-0 inset-x-0 p-4 bg-transparent z-40 animate-in slide-in-from-bottom duration-300 select-none">
       <div className={`max-w-md mx-auto rounded-[24px] p-4 flex items-center justify-between shadow-xl border ${corFundoSacola}`}>
         <div className="flex items-center gap-3.5">
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shadow-sm transition-colors ${corBotaoQuantidade}`}>
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-extrabold text-xs shadow-sm transition-colors ${corBotaoQuantidade}`}>
             {totalItens}
           </div>
           <div>
             <span className={`text-[9px] block font-bold uppercase tracking-widest ${corTextoLabel}`}>Subtotal</span>
-            <span className={`font-black text-sm font-mono tracking-tight ${corTextoSubtotal}`}>
+            <span className={`font-extrabold text-sm font-mono tracking-tight ${corTextoSubtotal}`}>
               {formatarMoeda(valorTotal)}
             </span>
           </div>
@@ -53,7 +53,7 @@ export default function BarraCarrinhoFlutuante({ ehAcai = false }: BarraProps) {
 
         <Link
           href={`/${slug}/checkout`}
-          className={`font-black text-xs px-5 py-3 rounded-[16px] active:scale-[0.98] transition-all flex items-center gap-1.5 shadow-md uppercase tracking-wider ${corBotaoAcao}`}
+          className={`font-extrabold text-xs px-5 py-3 rounded-[16px] active:scale-[0.98] transition-all flex items-center gap-1.5 shadow-md uppercase tracking-wider ${corBotaoAcao}`}
         >
           Ver Sacola
           <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">

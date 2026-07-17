@@ -16,7 +16,7 @@ export function ColunaEsteiraCozinha({ titulo, pedidos, onAvancarStatus, isMutat
   return (
     <div className="rounded-[24px] bg-white border border-zinc-200/60 p-4 shadow-sm shadow-zinc-300/20 flex flex-col gap-4">
       <div className="flex items-center justify-between border-b border-zinc-100 pb-2.5 px-1 select-none">
-        <span className="text-xs font-black uppercase tracking-wider text-[#1A1A1A]">{titulo}</span>
+        <span className="text-xs font-extrabold uppercase tracking-wider text-[#1A1A1A]">{titulo}</span>
         <span className="rounded-[8px] bg-[#F3F3F3] border border-zinc-200/40 px-2 py-0.5 text-xs font-mono font-bold text-zinc-600">
           {pedidos.length}
         </span>

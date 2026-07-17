@@ -37,7 +37,7 @@ export default function ComponenteLojaAcai({ restaurante, produtos }: Componente
               </svg>
             </button>
             <div className="leading-tight">
-              <h1 className="font-black text-lg tracking-tight uppercase text-white">
+              <h1 className="font-extrabold text-lg tracking-tight uppercase text-white">
                 {restaurante.nome}
               </h1>
               <span className="text-[10px] font-bold tracking-widest text-purple-300/90 block mt-0.5 uppercase">
@@ -51,7 +51,7 @@ export default function ComponenteLojaAcai({ restaurante, produtos }: Componente
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" />
             </svg>
             {totalItens > 0 && (
-              <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 bg-white text-[#3B0D2C] rounded-full text-[10px] font-black flex items-center justify-center leading-none">
+              <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 bg-white text-[#3B0D2C] rounded-full text-[10px] font-extrabold flex items-center justify-center leading-none">
                 {totalItens}
               </span>
             )}
@@ -60,7 +60,7 @@ export default function ComponenteLojaAcai({ restaurante, produtos }: Componente
       </div>
 
       <div className="w-full bg-white border-b border-zinc-200/50 shadow-sm">
-        <nav className="w-full max-w-xl mx-auto px-6 py-3.5 flex items-center gap-6 text-xs font-black uppercase tracking-wider text-zinc-400 overflow-x-auto scrollbar-none">
+        <nav className="w-full max-w-xl mx-auto px-6 py-3.5 flex items-center gap-6 text-xs font-extrabold uppercase tracking-wider text-zinc-400 overflow-x-auto scrollbar-none">
           <button className="text-[#3B0D2C] border-b-2 border-[#3B0D2C] pb-1 shrink-0">✨ Todos</button>
           <button className="hover:text-zinc-900 transition-colors pb-1 shrink-0">💪 Fitness</button>
           <button className="hover:text-zinc-900 transition-colors pb-1 shrink-0">🍓 Sobremesas</button>
@@ -70,8 +70,8 @@ export default function ComponenteLojaAcai({ restaurante, produtos }: Componente
 
       <div className="w-full max-w-xl mx-auto px-6 mt-8">
         <div className="flex flex-col gap-1 mb-4 select-none">
-          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Cardápio</span>
-          <h2 className="text-xl font-black tracking-tight text-zinc-900">Combinações Premium</h2>
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-400">Cardápio</span>
+          <h2 className="text-xl font-extrabold tracking-tight text-zinc-900">Combinações Premium</h2>
         </div>
 
         <div className="space-y-4">

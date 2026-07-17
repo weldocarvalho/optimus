@@ -36,7 +36,7 @@ export default function PainelCozinhaAdmin() {
 
         <header className="flex items-center justify-between px-2 select-none">
           <div className="leading-tight">
-            <h1 className="text-xl font-black tracking-tight text-[#1A1A1A]">Monitor de Produção</h1>
+            <h1 className="text-xl font-extrabold tracking-tight text-[#1A1A1A]">Monitor de Produção</h1>
             <span className="text-[11px] font-bold text-zinc-400 block mt-0.5">Fila de pedidos ativa em tempo real</span>
           </div>
 
@@ -44,14 +44,14 @@ export default function PainelCozinhaAdmin() {
             <button
               onClick={executarReconciliacaoPedidos}
               disabled={sincronizando}
-              className="rounded-[12px] border border-zinc-200/80 bg-white px-3.5 py-2 text-[10px] font-black uppercase tracking-widest text-zinc-500 transition-all duration-150 hover:bg-zinc-50 disabled:opacity-50 shadow-sm"
+              className="rounded-[12px] border border-zinc-200/80 bg-white px-3.5 py-2 text-[10px] font-extrabold uppercase tracking-widest text-zinc-500 transition-all duration-150 hover:bg-zinc-50 disabled:opacity-50 shadow-sm"
             >
               {sincronizando ? 'Sincronizando...' : 'Sincronizar'}
             </button>
             
             <div className="flex items-center gap-2 bg-white border border-zinc-200/60 px-3 py-2 rounded-[12px] shadow-sm">
               <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-              <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Canal Ativo</span>
+              <span className="text-[9px] font-extrabold uppercase tracking-widest text-zinc-400">Canal Ativo</span>
             </div>
           </div>
         </header>
