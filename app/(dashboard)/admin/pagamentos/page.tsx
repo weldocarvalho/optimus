@@ -1,4 +1,5 @@
 import { AdminNavHeader } from '@/components/admin/AdminNavHeader';
+import { ConfiguracaoPixelFacebook } from '@/components/admin/ConfiguracaoPixelFacebook';
 import {
   obterIntegracaoMercadoPagoPorRestauranteId,
   obterRestauranteIdDoGestorLogado,
@@ -12,7 +13,7 @@ export default async function PainelPagamentosAdmin() {
   const supabase = createWebhookAdminClient();
   const { data: restaurante } = await supabase
     .from('restaurantes')
-    .select('nome, slug')
+    .select('nome, slug, meta_pixel_id')
     .eq('id', restauranteId)
     .maybeSingle();
 
@@ -78,6 +79,8 @@ export default async function PainelPagamentosAdmin() {
           <div className="rounded-2xl border border-dashed border-zinc-200 bg-white p-5 text-sm text-zinc-500">
             Callback configurado em <span className="font-mono">/api/admin/integracoes/mercado-pago/callback</span>.
           </div>
+
+          <ConfiguracaoPixelFacebook pixelIdInicial={restaurante?.meta_pixel_id ?? null} />
         </section>
       </div>
     </div>

@@ -12,6 +12,7 @@ import BotaoLocalizacaoGps from '@/components/ecommerce/checkout/BotaoLocalizaca
 import CartaoRetirada from '@/components/ecommerce/checkout/CartaoRetirada';
 import FormularioEnderecoEntrega from '@/components/ecommerce/checkout/FormularioEnderecoEntrega';
 import type { AbaEntregaCheckout, EtapaCheckout } from '@/components/ecommerce/checkout/tipos';
+import { trackInitiateCheckout, trackPurchase } from '@/utils/meta-pixel';
 
 export default function TelaDeCheckoutDedicada() {
   const params = useParams();
@@ -92,6 +93,10 @@ export default function TelaDeCheckoutDedicada() {
     e.preventDefault();
     if (etapaCheckout === 'SACOLA') {
       if (itens.length === 0) return;
+      trackInitiateCheckout({
+        itens: itens.map((item) => ({ id: item.produto.id, quantidade: item.quantidade })),
+        valorTotal,
+      });
       setEtapaCheckout('ENTREGA');
     } else if (etapaCheckout === 'ENTREGA') {
       setEtapaCheckout('PAGAMENTO');
@@ -135,6 +140,14 @@ export default function TelaDeCheckoutDedicada() {
           tracking_url: body.tracking_url,
           codigo_acompanhamento: body.codigo_acompanhamento,
           pedido_id: body.pedido_id,
+        });
+      }
+
+      if (body.pedido_id) {
+        trackPurchase({
+          pedidoId: body.pedido_id,
+          valorTotal,
+          itens: itens.map((item) => ({ id: item.produto.id, quantidade: item.quantidade })),
         });
       }
 

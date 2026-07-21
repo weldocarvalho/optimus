@@ -2,6 +2,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { trackAddToCart } from '@/utils/meta-pixel';
 
 export interface Complemento {
   id: string;
@@ -73,10 +74,12 @@ export function ProvedorCarrinho({ children }: { children: React.ReactNode }) {
   }, [itens]);
 
   const adicionarItem = (produto: ItemCardapio, adicionais: Complemento[] = []) => {
-    setItens((itensAtuais) => {
-      const adicionaisIds = adicionais.map(a => a.id).sort().join('-');
-      const idUnico = adicionaisIds ? `${produto.id}-${adicionaisIds}` : produto.id;
+    const adicionaisIds = adicionais.map(a => a.id).sort().join('-');
+    const idUnico = adicionaisIds ? `${produto.id}-${adicionaisIds}` : produto.id;
+    const precoAdicionais = adicionais.reduce((acc, a) => acc + Number(a.preco_adicional), 0);
+    const precoFinal = Number(produto.preco_venda) + precoAdicionais;
 
+    setItens((itensAtuais) => {
       const itemExistente = itensAtuais.find((item) => item.idUnico === idUnico);
 
       if (itemExistente) {
@@ -85,22 +88,18 @@ export function ProvedorCarrinho({ children }: { children: React.ReactNode }) {
         );
       }
 
-      const precoAdicionais = adicionais.reduce((acc, a) => acc + Number(a.preco_adicional), 0);
-      const produtoPrecoFinal = {
-        ...produto,
-        preco_venda: Number(produto.preco_venda) + precoAdicionais
-      };
-
       return [
         ...itensAtuais,
         {
           idUnico,
-          produto: produtoPrecoFinal,
+          produto: { ...produto, preco_venda: precoFinal },
           quantidade: 1,
           adicionaisEscolhidos: adicionais
         }
       ];
     });
+
+    trackAddToCart({ id: produto.id, nome: produto.nome, valor: precoFinal, quantidade: 1 });
   };
 
   const removerItem = (idUnico: string) => {
