@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { createWebhookAdminClient } from '@/utils/supabase/webhook';
 import {
   montarMetadataPedido,
@@ -7,6 +8,8 @@ import {
   obterIntegracaoMercadoPagoPorRestauranteId,
   obterTokenMercadoPagoValido,
 } from '@/utils/mercado-pago';
+import { criarPedidoPendente } from '@/utils/pedidos-acompanhamento';
+import type { DadosClientePedido } from '@/utils/pedido-status';
 
 const MP_API_BASE = 'https://api.mercadopago.com';
 
@@ -15,24 +18,11 @@ interface ItemCliente {
   quantidade: number;
 }
 
-interface DadosCliente {
-  nome: string;
-  telefone: string;
-  email?: string;
-  endereco?: {
-    rua?: string;
-    numero?: string;
-    bairro?: string;
-    cidade?: string;
-    cep?: string;
-  };
-}
-
 interface RequestBody {
   slug: string;
   paymentMethod: 'PIX' | 'CARTAO';
   itens: ItemCliente[];
-  dadosCliente: DadosCliente;
+  dadosCliente: DadosClientePedido;
 }
 
 interface ItemCardapioPrecificado {
@@ -74,7 +64,7 @@ export async function POST(request: Request) {
     const slug = String(body.slug ?? '').trim();
     const paymentMethod = body.paymentMethod;
     const itens = Array.isArray(body.itens) ? body.itens : [];
-    const dadosCliente = (body.dadosCliente ?? {}) as DadosCliente;
+    const dadosCliente = (body.dadosCliente ?? {}) as DadosClientePedido;
 
     if (!slug || itens.length === 0) {
       return NextResponse.json({ error: 'Dados da requisição inválidos.' }, { status: 400 });
@@ -134,17 +124,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Mercado Pago não conectado para este restaurante.' }, { status: 409 });
     }
 
+    const externalReference = `pedido-${restaurante.id}-${Date.now()}-${randomUUID()}`;
+    const pedido = await criarPedidoPendente({
+      restauranteId: restaurante.id,
+      formaPagamento: paymentMethod,
+      dadosCliente,
+      valorTotal,
+      externalReference,
+      itens: itens.map((item) => ({
+        item_cardapio_id: item.item_cardapio_id,
+        quantidade: item.quantidade,
+        preco_unitario: Number(precoPorItem.get(item.item_cardapio_id) ?? 0),
+      })),
+    });
+
+    const trackingUrl = `${appUrl}/${slug}/acompanhar/${pedido.codigoAcompanhamento}`;
     const accessToken = await obterTokenMercadoPagoValido(restaurante.id);
     const notificationUrl = montarNotificationUrlMercadoPago(appUrl, restaurante.id);
     const metadata = montarMetadataPedido({
       slug,
+      pedidoId: pedido.id,
+      codigoAcompanhamento: pedido.codigoAcompanhamento,
+      externalReference,
       restauranteId: restaurante.id,
       metodoPagamento: paymentMethod,
       dadosCliente,
       itens,
     });
     const emailPayer = normalizarEmailPayer(dadosCliente.email, slug, dadosCliente.telefone);
-    const externalReference = `pedido-${restaurante.id}-${Date.now()}`;
     const idempotencyKey = `${externalReference}-${paymentMethod.toLowerCase()}`;
 
     if (paymentMethod === 'PIX') {
@@ -178,6 +185,9 @@ export async function POST(request: Request) {
       const transactionData = payload?.point_of_interaction?.transaction_data ?? {};
 
       return NextResponse.json({
+        pedido_id: pedido.id,
+        codigo_acompanhamento: pedido.codigoAcompanhamento,
+        tracking_url: trackingUrl,
         payment_id: payload.id,
         qr_code: transactionData.qr_code ?? '',
         qr_code_base64: transactionData.qr_code_base64 ?? '',
@@ -206,9 +216,9 @@ export async function POST(request: Request) {
         external_reference: externalReference,
         notification_url: notificationUrl,
         back_urls: {
-          success: `${appUrl}/${slug}?pagamento=aprovado`,
-          pending: `${appUrl}/${slug}/checkout?pagamento=pendente`,
-          failure: `${appUrl}/${slug}/checkout?pagamento=falhou`,
+          success: `${trackingUrl}?pagamento=aprovado`,
+          pending: `${trackingUrl}?pagamento=pendente`,
+          failure: `${trackingUrl}?pagamento=falhou`,
         },
         auto_return: 'approved',
         metadata,
@@ -221,6 +231,9 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
+      pedido_id: pedido.id,
+      codigo_acompanhamento: pedido.codigoAcompanhamento,
+      tracking_url: trackingUrl,
       preference_id: preferencePayload.id,
       checkout_url: preferencePayload.init_point ?? preferencePayload.sandbox_init_point ?? '',
     });

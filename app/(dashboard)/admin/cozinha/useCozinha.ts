@@ -230,7 +230,20 @@ export function useCozinha() {
 
   const alterarStatusPedido = (pedidoId: string, novoStatus: PedidoCozinha['status']) => {
     startTransition(async () => {
-      await supabase.from('pedidos').update({ status: novoStatus }).eq('id', pedidoId);
+      try {
+        const resposta = await fetch(`/api/admin/pedidos/${pedidoId}/status`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ status: novoStatus }),
+        });
+
+        if (!resposta.ok) {
+          const body = await resposta.json().catch(() => ({}));
+          throw new Error(body?.error || 'Falha ao atualizar status do pedido.');
+        }
+      } catch (error) {
+        console.error('Falha ao sincronizar status do pedido na cozinha:', error);
+      }
     });
   };
 

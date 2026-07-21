@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { createWebhookAdminClient } from '@/utils/supabase/webhook';
+import {
+  atualizarStatusPedidoComNotificacoes,
+  buscarPedidoPorExternalReference,
+  criarPedidoPendente,
+} from '@/utils/pedidos-acompanhamento';
+import type { DadosClientePedido } from '@/utils/pedido-status';
 
 const MP_API_BASE = 'https://api.mercadopago.com';
+
+type NivelLogWebhook = 'info' | 'sucesso' | 'alerta' | 'erro';
 
 interface ItemMetadado {
   item_cardapio_id: string;
@@ -11,6 +19,9 @@ interface ItemMetadado {
 
 interface MetadataPedido {
   slug?: string;
+  pedidoId?: string;
+  codigoAcompanhamento?: string;
+  externalReference?: string;
   restauranteId?: string;
   restaurante_id?: string;
   dadosCliente?: unknown;
@@ -22,10 +33,9 @@ interface MetadataPedido {
 
 interface ItemCardapioPrecificado {
   id: string;
+  nome: string;
   preco_venda: number;
 }
-
-type NivelLogWebhook = 'info' | 'sucesso' | 'alerta' | 'erro';
 
 interface ParamsRegistrarLogWebhook {
   supabase: ReturnType<typeof createWebhookAdminClient>;
@@ -54,7 +64,7 @@ function serializarErro(error: unknown): Record<string, unknown> {
   }
 
   if (typeof error === 'object' && error !== null) {
-    return { ...error as Record<string, unknown> };
+    return { ...(error as Record<string, unknown>) };
   }
 
   return { valor: String(error) };
@@ -85,26 +95,14 @@ function interpretarJsonMetadado<T>(valor: unknown): T | null {
   return null;
 }
 
-function resumirMetadadosPagamento(metadata: MetadataPedido) {
-  const dadosClienteBruto = metadata.dadosCliente;
-  const itensBruto = metadata.itens;
-  const dadosClienteParseado = interpretarJsonMetadado<Record<string, unknown>>(dadosClienteBruto);
-  const itensParseados = interpretarJsonMetadado<ItemMetadado[]>(itensBruto);
-
-  return {
-    chaves_metadata: Object.keys(metadata),
-    slug_presente: typeof metadata.slug === 'string' && metadata.slug.trim().length > 0,
-    tipo_dados_cliente: dadosClienteBruto == null ? 'ausente' : typeof dadosClienteBruto,
-    tamanho_dados_cliente_texto: typeof dadosClienteBruto === 'string' ? dadosClienteBruto.length : null,
-    dados_cliente_parseado_valido: Boolean(dadosClienteParseado && typeof dadosClienteParseado === 'object'),
-    dados_cliente_campos: dadosClienteParseado ? Object.keys(dadosClienteParseado) : [],
-    dados_cliente_tem_nome: typeof dadosClienteParseado?.nome === 'string',
-    dados_cliente_tem_telefone: typeof dadosClienteParseado?.telefone === 'string',
-    tipo_itens: itensBruto == null ? 'ausente' : typeof itensBruto,
-    tamanho_itens_texto: typeof itensBruto === 'string' ? itensBruto.length : null,
-    itens_parseados_valido: Array.isArray(itensParseados),
-    itens_quantidade: Array.isArray(itensParseados) ? itensParseados.length : 0,
-  };
+function validarItens(itens: ItemMetadado[]) {
+  return itens.every(
+    (item) =>
+      typeof item.item_cardapio_id === 'string' &&
+      item.item_cardapio_id.length > 0 &&
+      Number.isInteger(item.quantidade) &&
+      item.quantidade > 0
+  );
 }
 
 function registrarConsoleWebhook({
@@ -137,12 +135,10 @@ function registrarConsoleWebhook({
     console.error(textoLog);
     return;
   }
-
   if (nivel === 'alerta') {
     console.warn(textoLog);
     return;
   }
-
   console.log(textoLog);
 }
 
@@ -224,16 +220,6 @@ async function buscarPagamentoMercadoPago(accessToken: string, paymentId: string
   };
 }
 
-function validarItens(itens: ItemMetadado[]) {
-  return itens.every(
-    (item) =>
-      typeof item.item_cardapio_id === 'string' &&
-      item.item_cardapio_id.length > 0 &&
-      Number.isInteger(item.quantidade) &&
-      item.quantidade > 0
-  );
-}
-
 async function extrairCorpo(request: Request) {
   try {
     return await request.json();
@@ -245,90 +231,71 @@ async function extrairCorpo(request: Request) {
 export async function POST(request: Request) {
   const supabase = createWebhookAdminClient();
   const idCorrelacao = randomUUID();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (!appUrl) {
-    await registrarLogWebhook({
-      supabase,
-      idCorrelacao,
-      etapa: 'validacao_configuracao',
-      nivel: 'erro',
-      mensagem: 'Webhook interrompido por ausência de NEXT_PUBLIC_APP_URL.',
-    });
-    return NextResponse.json({ error: 'URL pública da aplicação não configurada.' }, { status: 500 });
-  }
-
   let etapaAtual = 'inicio';
 
   try {
-    etapaAtual = 'recebimento_webhook';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!appUrl) {
+      await registrarLogWebhook({
+        supabase,
+        idCorrelacao,
+        etapa: 'validacao_configuracao',
+        nivel: 'erro',
+        mensagem: 'Webhook interrompido por ausência de NEXT_PUBLIC_APP_URL.',
+      });
+      return NextResponse.json({ error: 'URL pública da aplicação não configurada.' }, { status: 500 });
+    }
+
     const body = await extrairCorpo(request);
-    const dataId = body?.data?.id ?? body?.id ?? null;
-    const tipo = body?.type ?? body?.topic ?? body?.action ?? null;
-    const restauranteId = String(
-      new URL(request.url).searchParams.get('restaurante_id') ?? body?.restaurante_id ?? ''
-    ).trim();
-    const paymentIdNotificacao = dataId ? String(dataId) : null;
+    const paymentId = String(body?.data?.id ?? body?.id ?? '').trim();
+    const tipoEvento = String(body?.type ?? body?.action ?? 'desconhecido');
+    const restauranteIdQuery = new URL(request.url).searchParams.get('restaurante_id');
 
-    await registrarLogWebhook({
-      supabase,
-      idCorrelacao,
-      etapa: etapaAtual,
-      nivel: 'info',
-      mensagem: 'Notificação recebida no webhook de pagamentos.',
-      restauranteId: restauranteId || null,
-      paymentId: paymentIdNotificacao,
-      tipoEvento: tipo ? String(tipo) : null,
-      dados: {
-        possui_data_id: Boolean(dataId),
-        possui_restaurante_id: Boolean(restauranteId),
-      },
-    });
-
-    if (!dataId) {
+    if (!paymentId) {
       await registrarLogWebhook({
         supabase,
         idCorrelacao,
-        etapa: 'validacao_notificacao',
+        etapa: 'validacao_payload',
         nivel: 'alerta',
-        mensagem: 'Notificação recebida sem identificador de pagamento.',
-        restauranteId: restauranteId || null,
-        tipoEvento: tipo ? String(tipo) : null,
-      });
-      return NextResponse.json({ error: 'Notificação sem identificador de pagamento.' }, { status: 400 });
-    }
-
-    if (!restauranteId) {
-      await registrarLogWebhook({
-        supabase,
-        idCorrelacao,
-        etapa: 'validacao_notificacao',
-        nivel: 'alerta',
-        mensagem: 'Notificação recebida sem restaurante_id.',
-        paymentId: String(dataId),
-        tipoEvento: tipo ? String(tipo) : null,
-      });
-      return NextResponse.json({ error: 'restaurante_id ausente na notificação.' }, { status: 400 });
-    }
-
-    if (tipo && !String(tipo).toLowerCase().includes('payment')) {
-      await registrarLogWebhook({
-        supabase,
-        idCorrelacao,
-        etapa: 'filtro_evento',
-        nivel: 'info',
-        mensagem: 'Evento ignorado por não ser relacionado a pagamento.',
-        restauranteId,
-        paymentId: String(dataId),
-        tipoEvento: String(tipo),
+        mensagem: 'Webhook recebido sem identificador do pagamento.',
+        restauranteId: restauranteIdQuery,
+        tipoEvento,
+        dados: { body },
       });
       return NextResponse.json({ received: true });
     }
 
-    etapaAtual = 'resolucao_token_integracao';
+    await registrarLogWebhook({
+      supabase,
+      idCorrelacao,
+      etapa: 'payload_recebido',
+      nivel: 'info',
+      mensagem: 'Webhook de pagamento recebido com payload inicial.',
+      restauranteId: restauranteIdQuery,
+      paymentId,
+      tipoEvento,
+      dados: { body },
+    });
+
+    if (!restauranteIdQuery) {
+      await registrarLogWebhook({
+        supabase,
+        idCorrelacao,
+        etapa: 'validacao_restaurante_query',
+        nivel: 'alerta',
+        mensagem: 'Webhook recebido sem restaurante_id na query string.',
+        paymentId,
+        tipoEvento,
+      });
+      return NextResponse.json({ error: 'restaurante_id ausente.' }, { status: 400 });
+    }
+
+    etapaAtual = 'carregamento_integracao_restaurante';
     const { data: integracao, error: errIntegracao } = await supabase
       .from('restaurante_integracoes_pagamento')
       .select('access_token, connection_status')
-      .eq('restaurante_id', restauranteId)
+      .eq('restaurante_id', restauranteIdQuery)
+      .eq('provedor', 'mercado_pago')
       .maybeSingle();
 
     if (errIntegracao || !integracao?.access_token || integracao.connection_status !== 'conectado') {
@@ -337,29 +304,28 @@ export async function POST(request: Request) {
         idCorrelacao,
         etapa: etapaAtual,
         nivel: 'erro',
-        mensagem: 'Integração Mercado Pago indisponível para o restaurante.',
-        restauranteId,
-        paymentId: String(dataId),
-        dados: {
-          connection_status: integracao?.connection_status ?? null,
-        },
+        mensagem: 'Integração Mercado Pago indisponível para este restaurante.',
+        restauranteId: restauranteIdQuery,
+        paymentId,
         erro: errIntegracao,
       });
       return NextResponse.json({ error: 'Integração Mercado Pago indisponível.' }, { status: 409 });
     }
 
     etapaAtual = 'consulta_pagamento_mercado_pago';
-    const pagamento = await buscarPagamentoMercadoPago(integracao.access_token, String(dataId));
+    const pagamento = await buscarPagamentoMercadoPago(integracao.access_token, paymentId);
+
     await registrarLogWebhook({
       supabase,
       idCorrelacao,
       etapa: etapaAtual,
       nivel: 'info',
       mensagem: 'Pagamento consultado com sucesso no Mercado Pago.',
-      restauranteId,
-      paymentId: String(pagamento.id),
+      restauranteId: restauranteIdQuery,
+      paymentId,
       dados: {
         status_pagamento: pagamento.status,
+        external_reference: pagamento.external_reference ?? null,
       },
     });
 
@@ -369,12 +335,10 @@ export async function POST(request: Request) {
         idCorrelacao,
         etapa: 'validacao_status_pagamento',
         nivel: 'info',
-        mensagem: 'Pagamento ainda não aprovado; webhook encerrado sem conciliação.',
-        restauranteId,
-        paymentId: String(pagamento.id),
-        dados: {
-          status_pagamento: pagamento.status,
-        },
+        mensagem: 'Pagamento ainda não aprovado; webhook encerrado sem atualização do pedido.',
+        restauranteId: restauranteIdQuery,
+        paymentId,
+        dados: { status_pagamento: pagamento.status },
       });
       return NextResponse.json({ received: true });
     }
@@ -382,22 +346,61 @@ export async function POST(request: Request) {
     etapaAtual = 'leitura_metadados_pagamento';
     const metadata = pagamento.metadata ?? {};
     const slug = String(metadata.slug ?? '').trim();
-    const dadosCliente = interpretarJsonMetadado<Record<string, unknown>>(
-      metadata.dadosCliente ?? metadata.dados_cliente
-    );
+    const pedidoIdMetadata = String(metadata.pedidoId ?? '').trim();
+    const dadosCliente = interpretarJsonMetadado<DadosClientePedido>(metadata.dadosCliente ?? metadata.dados_cliente);
     const itens = interpretarJsonMetadado<ItemMetadado[]>(metadata.itens) ?? [];
-    const diagnosticoMetadados = resumirMetadadosPagamento(metadata);
 
-    await registrarLogWebhook({
-      supabase,
-      idCorrelacao,
-      etapa: 'diagnostico_metadados_pagamento',
-      nivel: 'info',
-      mensagem: 'Resumo técnico dos metadados recebidos do Mercado Pago.',
-      restauranteId,
-      paymentId: String(pagamento.id),
-      dados: diagnosticoMetadados,
-    });
+    let pedidoExistente: Awaited<ReturnType<typeof buscarPedidoPorExternalReference>> = null;
+    if (pedidoIdMetadata) {
+      const { data } = await supabase
+        .from('pedidos')
+        .select('id, status, mercado_pago_payment_id, restaurante_id, codigo_acompanhamento')
+        .eq('id', pedidoIdMetadata)
+        .maybeSingle();
+      pedidoExistente = (data as Awaited<ReturnType<typeof buscarPedidoPorExternalReference>>) ?? null;
+    }
+
+    if (!pedidoExistente && pagamento.external_reference) {
+      pedidoExistente = await buscarPedidoPorExternalReference(pagamento.external_reference);
+    }
+
+    if (pedidoExistente) {
+      await registrarLogWebhook({
+        supabase,
+        idCorrelacao,
+        etapa: 'pedido_existente_localizado',
+        nivel: 'info',
+        mensagem: 'Pedido pré-criado localizado para conciliação do pagamento.',
+        restauranteId: pedidoExistente.restaurante_id,
+        paymentId,
+        dados: { pedido_id: pedidoExistente.id, status_atual: pedidoExistente.status },
+      });
+
+      const resultado = await atualizarStatusPedidoComNotificacoes({
+        pedidoId: pedidoExistente.id,
+        novoStatus: 'PAGO',
+        mercadoPagoPaymentId: paymentId,
+      });
+
+      await registrarLogWebhook({
+        supabase,
+        idCorrelacao,
+        etapa: 'atualizacao_status_pedido_existente',
+        nivel: 'sucesso',
+        mensagem: resultado.mudouStatus
+          ? 'Pedido existente atualizado para PAGO com sucesso.'
+          : 'Webhook repetido detectado; pedido já estava sincronizado.',
+        restauranteId: pedidoExistente.restaurante_id,
+        paymentId,
+        dados: {
+          pedido_id: pedidoExistente.id,
+          status_final: resultado.pedido.status,
+          tracking_token: resultado.pedido.codigo_acompanhamento,
+        },
+      });
+
+      return NextResponse.json({ received: true, pedido_id: pedidoExistente.id });
+    }
 
     if (!slug) {
       await registrarLogWebhook({
@@ -405,9 +408,9 @@ export async function POST(request: Request) {
         idCorrelacao,
         etapa: etapaAtual,
         nivel: 'alerta',
-        mensagem: 'Pagamento aprovado sem slug nos metadados.',
-        restauranteId,
-        paymentId: String(pagamento.id),
+        mensagem: 'Pagamento aprovado sem slug nos metadados e sem pedido prévio localizável.',
+        restauranteId: restauranteIdQuery,
+        paymentId,
       });
       return NextResponse.json({ error: 'Slug do restaurante ausente nos metadados.' }, { status: 400 });
     }
@@ -419,8 +422,8 @@ export async function POST(request: Request) {
         etapa: etapaAtual,
         nivel: 'alerta',
         mensagem: 'Dados do cliente inválidos nos metadados do pagamento.',
-        restauranteId,
-        paymentId: String(pagamento.id),
+        restauranteId: restauranteIdQuery,
+        paymentId,
       });
       return NextResponse.json({ error: 'Dados do cliente inválidos.' }, { status: 400 });
     }
@@ -432,8 +435,8 @@ export async function POST(request: Request) {
         etapa: etapaAtual,
         nivel: 'alerta',
         mensagem: 'Itens inválidos nos metadados do pagamento.',
-        restauranteId,
-        paymentId: String(pagamento.id),
+        restauranteId: restauranteIdQuery,
+        paymentId,
       });
       return NextResponse.json({ error: 'Itens do pagamento inválidos.' }, { status: 400 });
     }
@@ -441,7 +444,7 @@ export async function POST(request: Request) {
     etapaAtual = 'busca_restaurante_por_slug';
     const { data: restaurante, error: errRestaurante } = await supabase
       .from('restaurantes')
-      .select('id')
+      .select('id, nome, slug')
       .eq('slug', slug)
       .maybeSingle();
 
@@ -452,8 +455,8 @@ export async function POST(request: Request) {
         etapa: etapaAtual,
         nivel: 'erro',
         mensagem: 'Restaurante não localizado para o slug do pagamento.',
-        restauranteId,
-        paymentId: String(pagamento.id),
+        restauranteId: restauranteIdQuery,
+        paymentId,
         dados: { slug },
         erro: errRestaurante,
       });
@@ -464,7 +467,7 @@ export async function POST(request: Request) {
     const idsProdutos = itens.map((item) => item.item_cardapio_id);
     const { data: produtosBanco, error: errProdutos } = await supabase
       .from('itens_cardapio')
-      .select('id, preco_venda')
+      .select('id, nome, preco_venda')
       .eq('restaurante_id', restaurante.id)
       .in('id', idsProdutos);
 
@@ -476,11 +479,7 @@ export async function POST(request: Request) {
         nivel: 'erro',
         mensagem: 'Falha na recuperação de preços para conciliação do pedido.',
         restauranteId: restaurante.id,
-        paymentId: String(pagamento.id),
-        dados: {
-          quantidade_itens_metadados: idsProdutos.length,
-          quantidade_itens_encontrados: produtosBanco?.length ?? 0,
-        },
+        paymentId,
         erro: errProdutos,
       });
       return NextResponse.json({ error: 'Falha ao recuperar preços vigentes.' }, { status: 400 });
@@ -488,177 +487,52 @@ export async function POST(request: Request) {
 
     const produtos = produtosBanco as ItemCardapioPrecificado[];
     const valorTotal = itens.reduce((acc, item) => {
-      const prod = produtos.find((p) => p.id === item.item_cardapio_id);
-      if (!prod) {
-        return acc;
-      }
-      return acc + Number(prod.preco_venda) * item.quantidade;
+      const produto = produtos.find((prod) => prod.id === item.item_cardapio_id);
+      return acc + (produto ? Number(produto.preco_venda) * item.quantidade : 0);
     }, 0);
 
-    const pedidoExistente = await supabase
-      .from('pedidos')
-      .select('id')
-      .eq('restaurante_id', restaurante.id)
-      .eq('fb_click_id', String(pagamento.id))
-      .maybeSingle();
-
-    if (pedidoExistente.data) {
-      await registrarLogWebhook({
-        supabase,
-        idCorrelacao,
-        etapa: 'idempotencia_conciliacao',
-        nivel: 'info',
-        mensagem: 'Pagamento já conciliado anteriormente; webhook ignorado.',
-        restauranteId: restaurante.id,
-        paymentId: String(pagamento.id),
-        dados: { pedido_id_existente: pedidoExistente.data.id },
-      });
-      return NextResponse.json({ received: true });
-    }
-
+    etapaAtual = 'criacao_pedido_fallback';
+    const externalReference = pagamento.external_reference || metadata.externalReference || `legacy-${restaurante.id}-${randomUUID()}`;
     const formaPagamento = String(
       pagamento.payment_method_id || metadata.metodoPagamento || metadata.metodo_pagamento || 'CARTAO'
     ).toUpperCase() === 'PIX'
       ? 'PIX'
       : 'CARTAO';
 
-    etapaAtual = 'criacao_pedido';
-    const { data: novoPedido, error: errPedido } = await supabase
-      .from('pedidos')
-      .insert([
-        {
-          restaurante_id: restaurante.id,
-          status: 'PAGO',
-          valor_total: Math.round(valorTotal * 100) / 100,
-          forma_pagamento: formaPagamento,
-          dados_cliente: dadosCliente,
-          fb_click_id: String(pagamento.id),
-        },
-      ])
-      .select()
-      .single();
-
-    if (errPedido || !novoPedido) {
-      throw errPedido || new Error('Erro ao criar pedido.');
-    }
-
-    await registrarLogWebhook({
-      supabase,
-      idCorrelacao,
-      etapa: etapaAtual,
-      nivel: 'sucesso',
-      mensagem: 'Pedido criado com sucesso na conciliação do webhook.',
+    const pedidoCriado = await criarPedidoPendente({
       restauranteId: restaurante.id,
-      paymentId: String(pagamento.id),
-      dados: {
-        pedido_id: novoPedido.id,
-        valor_total: Math.round(valorTotal * 100) / 100,
-        forma_pagamento: formaPagamento,
-      },
-    });
-
-    const linhasItens = itens.map((item) => {
-      const prod = produtos.find((p) => p.id === item.item_cardapio_id);
-      return {
-        pedido_id: novoPedido.id,
+      formaPagamento,
+      dadosCliente,
+      valorTotal,
+      externalReference,
+      itens: itens.map((item) => ({
         item_cardapio_id: item.item_cardapio_id,
         quantidade: item.quantidade,
-        preco_unitario: prod ? Number(prod.preco_venda) : 0,
-      };
+        preco_unitario: Number(produtos.find((prod) => prod.id === item.item_cardapio_id)?.preco_venda ?? 0),
+      })),
     });
 
-    etapaAtual = 'criacao_itens_pedido';
-    const { error: errItens } = await supabase.from('itens_pedido').insert(linhasItens);
-    if (errItens) {
-      throw errItens;
-    }
+    const resultado = await atualizarStatusPedidoComNotificacoes({
+      pedidoId: pedidoCriado.id,
+      novoStatus: 'PAGO',
+      mercadoPagoPaymentId: paymentId,
+    });
 
     await registrarLogWebhook({
       supabase,
       idCorrelacao,
-      etapa: etapaAtual,
+      etapa: 'finalizacao_conciliacao_fallback',
       nivel: 'sucesso',
-      mensagem: 'Itens do pedido inseridos com sucesso.',
+      mensagem: 'Pedido legado conciliado com sucesso via fallback do webhook.',
       restauranteId: restaurante.id,
-      paymentId: String(pagamento.id),
+      paymentId,
       dados: {
-        quantidade_linhas_itens: linhasItens.length,
+        pedido_id: pedidoCriado.id,
+        tracking_token: resultado.pedido.codigo_acompanhamento,
       },
     });
 
-    etapaAtual = 'busca_composicoes_produtos';
-    const { data: composicoes, error: errCompo } = await supabase
-      .from('composicao_produto')
-      .select('item_cardapio_id, insumo_id, quantidade_necessaria')
-      .in('item_cardapio_id', idsProdutos);
-
-    if (errCompo) {
-      throw new Error(`Falha ao carregar composição dos produtos: ${errCompo.message}`);
-    }
-
-    etapaAtual = 'deducao_estoque';
-    let totalDeduzes = 0;
-    if (composicoes) {
-      const quantidadePorItem = new Map(itens.map((item) => [item.item_cardapio_id, item.quantidade]));
-
-      for (const comp of composicoes) {
-        const qtdVendidaDoProduto = quantidadePorItem.get(comp.item_cardapio_id) || 0;
-        const quantidadeTotalDeduzir = Number(comp.quantidade_necessaria) * qtdVendidaDoProduto;
-
-        if (quantidadeTotalDeduzir > 0) {
-          const { error: errDeduzir } = await supabase.rpc('deduzir_estoque_insumo', {
-            p_insumo_id: comp.insumo_id,
-            p_quantidade: quantidadeTotalDeduzir,
-          });
-
-          if (errDeduzir) {
-            throw new Error(`Falha ao deduzir estoque: ${errDeduzir.message}`);
-          }
-
-          totalDeduzes += 1;
-        }
-      }
-    }
-
-    await registrarLogWebhook({
-      supabase,
-      idCorrelacao,
-      etapa: etapaAtual,
-      nivel: 'sucesso',
-      mensagem: 'Dedução de estoque concluída.',
-      restauranteId: restaurante.id,
-      paymentId: String(pagamento.id),
-      dados: {
-        total_operacoes_deducao: totalDeduzes,
-      },
-    });
-
-    etapaAtual = 'atualizacao_funil';
-    const hoje = new Date().toISOString().split('T')[0];
-    const { error: errFunil } = await supabase.rpc('incrementar_compras_funil', {
-      p_restaurante_id: restaurante.id,
-      p_data: hoje,
-    });
-
-    if (errFunil) {
-      throw new Error(`Falha ao atualizar métricas de funil: ${errFunil.message}`);
-    }
-
-    await registrarLogWebhook({
-      supabase,
-      idCorrelacao,
-      etapa: 'finalizacao_conciliacao',
-      nivel: 'sucesso',
-      mensagem: 'Pedido conciliado com sucesso via webhook Mercado Pago.',
-      restauranteId: restaurante.id,
-      paymentId: String(pagamento.id),
-      dados: {
-        pedido_id: novoPedido.id,
-        data_referencia_funil: hoje,
-      },
-    });
-
-    return NextResponse.json({ received: true });
+    return NextResponse.json({ received: true, pedido_id: pedidoCriado.id });
   } catch (error: unknown) {
     await registrarLogWebhook({
       supabase,

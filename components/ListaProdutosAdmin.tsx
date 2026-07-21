@@ -125,7 +125,7 @@ export default function ListaProdutosAdmin({
           </button>
         </div>
 
-        <div className="max-h-[55vh] divide-y divide-zinc-100 overflow-y-auto pr-1">
+        <div className="max-h-[55vh] space-y-3 overflow-y-auto">
           {produtosIniciais.length === 0 ? (
             <p className="py-12 text-center text-sm text-zinc-400">Nenhum hambúrguer cadastrado no cardápio.</p>
           ) : (

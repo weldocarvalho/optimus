@@ -35,6 +35,7 @@ export default function TelaDeCheckoutDedicada() {
   const [carregandoPagamento, setCarregandoPagamento] = useState(false);
   const [dadosPix, setDadosPix] = useState<{ qr_code: string; qr_code_base64?: string; payment_id: string } | null>(null);
   const [urlCheckoutCartao, setUrlCheckoutCartao] = useState<string | null>(null);
+  const [trackingPedido, setTrackingPedido] = useState<{ tracking_url: string; codigo_acompanhamento: string; pedido_id: string } | null>(null);
   const [enderecoLoja, setEnderecoLoja] = useState('Endereço do estabelecimento');
 
   useEffect(() => {
@@ -101,6 +102,7 @@ export default function TelaDeCheckoutDedicada() {
     setCarregandoPagamento(true);
     setDadosPix(null);
     setUrlCheckoutCartao(null);
+    setTrackingPedido(null);
 
     try {
       const resposta = await fetch('/api/checkout', {
@@ -117,7 +119,8 @@ export default function TelaDeCheckoutDedicada() {
             nome: nomeCliente,
             telefone: telefoneCliente,
             email: emailCliente,
-            endereco: dadosEndereco,
+            tipoEntrega: abaEntregaAtiva === 'RETIRADA' ? 'RETIRADA' : 'ENTREGA',
+            endereco: abaEntregaAtiva === 'RETIRADA' ? undefined : dadosEndereco,
           },
         }),
       });
@@ -125,6 +128,14 @@ export default function TelaDeCheckoutDedicada() {
       const body = await resposta.json();
       if (!resposta.ok) {
         throw new Error(body?.error || 'Falha ao iniciar pagamento.');
+      }
+
+      if (body.tracking_url && body.codigo_acompanhamento && body.pedido_id) {
+        setTrackingPedido({
+          tracking_url: body.tracking_url,
+          codigo_acompanhamento: body.codigo_acompanhamento,
+          pedido_id: body.pedido_id,
+        });
       }
 
       if (novoMetodo === 'PIX') {
@@ -385,6 +396,14 @@ export default function TelaDeCheckoutDedicada() {
                     className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-[11px] font-mono text-zinc-700"
                     rows={4}
                   />
+                  {trackingPedido ? (
+                    <Link
+                      href={trackingPedido.tracking_url}
+                      className="inline-flex w-full items-center justify-center rounded-xl bg-zinc-900 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-white transition hover:bg-zinc-800"
+                    >
+                      Acompanhar pedido
+                    </Link>
+                  ) : null}
                 </div>
               )}
 

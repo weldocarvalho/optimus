@@ -38,6 +38,9 @@ interface MercadoPagoUser {
 
 interface PedidoMetadata {
   slug: string;
+  pedidoId: string;
+  codigoAcompanhamento: string;
+  externalReference: string;
   dadosCliente: string;
   itens: string;
   metodoPagamento: MetodoPagamentoMercadoPago;
@@ -327,6 +330,9 @@ export function normalizarEmailPayer(email?: string | null, slug?: string, telef
 
 export function montarMetadataPedido(params: {
   slug: string;
+  pedidoId: string;
+  codigoAcompanhamento: string;
+  externalReference: string;
   restauranteId: string;
   metodoPagamento: MetodoPagamentoMercadoPago;
   dadosCliente: unknown;
@@ -334,6 +340,9 @@ export function montarMetadataPedido(params: {
 }) {
   const metadata: PedidoMetadata = {
     slug: params.slug,
+    pedidoId: params.pedidoId,
+    codigoAcompanhamento: params.codigoAcompanhamento,
+    externalReference: params.externalReference,
     restauranteId: params.restauranteId,
     metodoPagamento: params.metodoPagamento,
     dadosCliente: JSON.stringify(params.dadosCliente),
