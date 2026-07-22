@@ -75,6 +75,42 @@ function getSupabase() {
   return createWebhookAdminClient();
 }
 
+async function upsertClientePorTelefone(restauranteId: string, dadosCliente: DadosClientePedido) {
+  const telefoneNormalizado = dadosCliente.telefone?.replace(/\D/g, '');
+  if (!telefoneNormalizado) {
+    return;
+  }
+
+  const supabase = getSupabase();
+
+  try {
+    const { data: existente } = await supabase
+      .from('public_clientes')
+      .select('nome, email, endereco')
+      .eq('restaurante_id', restauranteId)
+      .eq('telefone', telefoneNormalizado)
+      .maybeSingle();
+
+    const { error } = await supabase.from('public_clientes').upsert(
+      {
+        restaurante_id: restauranteId,
+        telefone: telefoneNormalizado,
+        nome: dadosCliente.nome || existente?.nome || '',
+        email: dadosCliente.email || existente?.email || null,
+        endereco: dadosCliente.endereco ?? existente?.endereco ?? null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'restaurante_id,telefone' }
+    );
+
+    if (error) {
+      console.error('Falha ao salvar cadastro de cliente:', error);
+    }
+  } catch (error) {
+    console.error('Falha ao processar cadastro de cliente:', error);
+  }
+}
+
 export function gerarCodigoAcompanhamentoPedido() {
   return randomUUID().replace(/-/g, '');
 }
@@ -157,6 +193,8 @@ export async function criarPedidoPendente(params: {
     await supabase.from('pedidos').delete().eq('id', pedido.id);
     throw errItens;
   }
+
+  await upsertClientePorTelefone(params.restauranteId, params.dadosCliente);
 
   return {
     id: pedido.id,

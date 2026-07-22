@@ -169,6 +169,30 @@ export default function TelaDeCheckoutDedicada() {
     }
   };
 
+  const handleBuscarClientePorTelefone = async () => {
+    const digitos = telefoneCliente.replace(/\D/g, '');
+    if (digitos.length < 10) return;
+
+    try {
+      const resposta = await fetch(`/api/restaurantes/${slug}/clientes?telefone=${encodeURIComponent(digitos)}`);
+      const dados = await resposta.json();
+      if (!dados?.encontrado) return;
+
+      if (!nomeCliente && dados.nome) setNomeCliente(dados.nome);
+      if (!emailCliente && dados.email) setEmailCliente(dados.email);
+
+      const endereco = dados.endereco as { rua?: string; numero?: string; bairro?: string; cep?: string } | null;
+      if (endereco) {
+        if (!rua && endereco.rua) setRua(endereco.rua);
+        if (!numero && endereco.numero) setNumero(endereco.numero);
+        if (!bairro && endereco.bairro) setBairro(endereco.bairro);
+        if (!cep && endereco.cep) setCep(endereco.cep);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar cadastro do cliente:', error);
+    }
+  };
+
   const handleCapturarGps = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -343,8 +367,9 @@ export default function TelaDeCheckoutDedicada() {
                     type="tel" 
                     required 
                     placeholder="(00) 99999-9999" 
-                    value={telefoneCliente} 
+                    value={telefoneCliente}
                     onChange={(e) => setTelefoneCliente(e.target.value)}
+                    onBlur={handleBuscarClientePorTelefone}
                     className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:bg-white focus:border-zinc-400 transition-all text-zinc-900 placeholder-zinc-400"
                   />
                 </div>
