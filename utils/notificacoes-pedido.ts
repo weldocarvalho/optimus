@@ -1,5 +1,6 @@
 import webpush from 'web-push';
 import { createWebhookAdminClient } from '@/utils/supabase/webhook';
+import { obterIntegracaoWhatsappBusinessPorRestauranteId } from '@/utils/whatsapp-business';
 import {
   type DadosClientePedido,
   type StatusPedido,
@@ -14,6 +15,7 @@ export interface PedidoParaNotificacao {
   codigoAcompanhamento: string;
   dadosCliente: DadosClientePedido;
   restaurante: {
+    id: string;
     nome: string;
     slug: string;
   };
@@ -43,7 +45,28 @@ function getAppUrl() {
   return appUrl;
 }
 
-function getWhatsappConfig(): ConfigWhatsapp | null {
+async function getWhatsappConfig(restauranteId: string): Promise<ConfigWhatsapp | null> {
+  const integracao = await obterIntegracaoWhatsappBusinessPorRestauranteId(restauranteId);
+  if (
+    integracao?.connection_status === 'conectado' &&
+    integracao.access_token &&
+    integracao.phone_number_id &&
+    integracao.template_name
+  ) {
+    if (integracao.template_status && integracao.template_status.toUpperCase() !== 'APPROVED') {
+      console.warn('[pedido:notificacao] Template do WhatsApp ainda não aprovado.');
+      return null;
+    }
+
+    return {
+      accessToken: integracao.access_token,
+      phoneNumberId: integracao.phone_number_id,
+      templateName: integracao.template_name,
+      languageCode: integracao.template_language_code ?? 'pt_BR',
+      apiVersion: integracao.api_version ?? 'v23.0',
+    };
+  }
+
   const accessToken = process.env.WHATSAPP_BUSINESS_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_BUSINESS_PHONE_NUMBER_ID;
   const templateName = process.env.WHATSAPP_TEMPLATE_STATUS_PEDIDO;
@@ -155,7 +178,7 @@ async function enviarWhatsappStatusPedido(
   pedido: PedidoParaNotificacao,
   tipoEntrega: TipoEntregaPedido
 ) {
-  const config = getWhatsappConfig();
+  const config = await getWhatsappConfig(pedido.restaurante.id);
   if (!config) {
     console.warn('[pedido:notificacao] WhatsApp Business não configurado.');
     return;

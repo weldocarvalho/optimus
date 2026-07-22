@@ -44,6 +44,8 @@ interface PedidoPublicoBruto {
   itens_pedido: PedidoPublicoLinhaBruta[] | null;
 }
 
+type PedidoInternoBruto = PedidoPublicoBruto & { restaurante_id: string };
+
 export interface PedidoPublico {
   id: string;
   status: StatusPedido;
@@ -220,7 +222,7 @@ export async function buscarPedidoInternoPorId(pedidoId: string) {
     return null;
   }
 
-  return data as unknown as PedidoPublicoBruto & { restaurante_id: string };
+  return data as unknown as PedidoInternoBruto;
 }
 
 export async function buscarPedidoPorExternalReference(externalReference: string) {
@@ -301,7 +303,7 @@ async function processarEfeitosColateraisPagamentoAprovado(pedidoId: string, res
   }
 }
 
-function mapearPedidoParaNotificacao(pedido: PedidoPublicoBruto): PedidoParaNotificacao {
+function mapearPedidoParaNotificacao(pedido: PedidoInternoBruto): PedidoParaNotificacao {
   const restaurante = Array.isArray(pedido.restaurantes) ? pedido.restaurantes[0] : pedido.restaurantes;
 
   return {
@@ -310,6 +312,7 @@ function mapearPedidoParaNotificacao(pedido: PedidoPublicoBruto): PedidoParaNoti
     codigoAcompanhamento: pedido.codigo_acompanhamento,
     dadosCliente: pedido.dados_cliente,
     restaurante: {
+      id: pedido.restaurante_id,
       nome: restaurante?.nome ?? 'Restaurante',
       slug: restaurante?.slug ?? '',
     },

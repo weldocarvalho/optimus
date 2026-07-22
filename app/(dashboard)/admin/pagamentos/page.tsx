@@ -4,6 +4,7 @@ import {
   obterIntegracaoMercadoPagoPorRestauranteId,
   obterRestauranteIdDoGestorLogado,
 } from '@/utils/mercado-pago';
+import { obterIntegracaoWhatsappBusinessPorRestauranteId } from '@/utils/whatsapp-business';
 import { createWebhookAdminClient } from '@/utils/supabase/webhook';
 
 export const revalidate = 0;
@@ -18,6 +19,7 @@ export default async function PainelPagamentosAdmin() {
     .maybeSingle();
 
   const integracao = await obterIntegracaoMercadoPagoPorRestauranteId(restauranteId);
+  const integracaoWhatsapp = await obterIntegracaoWhatsappBusinessPorRestauranteId(restauranteId);
 
   return (
     <div className="min-h-screen bg-[#F3F3F3] text-[#1A1A1A] font-sans antialiased flex items-start justify-center p-4 sm:p-8 md:py-12">
@@ -76,8 +78,56 @@ export default async function PainelPagamentosAdmin() {
             </div>
           </div>
 
+          <div className="rounded-2xl border border-zinc-200 p-5 space-y-3">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wider text-zinc-500">WhatsApp Business</div>
+                <div className="text-lg font-semibold text-zinc-900">
+                  {integracaoWhatsapp?.connection_status === 'conectado' ? 'Conta conectada' : 'Conta não conectada'}
+                </div>
+              </div>
+              <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-zinc-700">
+                {integracaoWhatsapp?.connection_status ?? 'pendente'}
+              </span>
+            </div>
+
+            <div className="space-y-1 text-sm text-zinc-600">
+              <div>
+                {integracaoWhatsapp?.display_phone_number
+                  ? `Número vinculado: ${integracaoWhatsapp.display_phone_number}`
+                  : 'Nenhum número vinculado ainda.'}
+              </div>
+              <div>
+                {integracaoWhatsapp?.template_name
+                  ? `Template: ${integracaoWhatsapp.template_name} (${integracaoWhatsapp.template_status ?? 'desconhecido'})`
+                  : 'Template de status ainda não configurado.'}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3 pt-2">
+              <form action="/api/admin/integracoes/whatsapp-business/conectar" method="get">
+                <button
+                  type="submit"
+                  className="rounded-xl bg-zinc-900 px-4 py-3 text-sm font-bold uppercase tracking-wider text-white"
+                >
+                  Conectar WhatsApp
+                </button>
+              </form>
+
+              <form action="/api/admin/integracoes/whatsapp-business/desconectar" method="post">
+                <button
+                  type="submit"
+                  className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-bold uppercase tracking-wider text-zinc-700"
+                >
+                  Desconectar
+                </button>
+              </form>
+            </div>
+          </div>
+
           <div className="rounded-2xl border border-dashed border-zinc-200 bg-white p-5 text-sm text-zinc-500">
-            Callback configurado em <span className="font-mono">/api/admin/integracoes/mercado-pago/callback</span>.
+            Callbacks: <span className="font-mono">/api/admin/integracoes/mercado-pago/callback</span> e{' '}
+            <span className="font-mono">/api/admin/integracoes/whatsapp-business/callback</span>.
           </div>
 
           <ConfiguracaoPixelFacebook pixelIdInicial={restaurante?.meta_pixel_id ?? null} />

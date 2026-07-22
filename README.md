@@ -22,6 +22,13 @@ MERCADO_PAGO_CLIENT_ID=""
 MERCADO_PAGO_CLIENT_SECRET=""
 MERCADO_PAGO_REDIRECT_URI=""
 MERCADO_PAGO_STATE_SECRET=""
+WHATSAPP_META_APP_ID=""
+WHATSAPP_META_APP_SECRET=""
+WHATSAPP_META_REDIRECT_URI=""
+WHATSAPP_META_STATE_SECRET=""
+WHATSAPP_BUSINESS_API_VERSION="v23.0"
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=""
+WHATSAPP_TEMPLATE_STATUS_PEDIDO=""
 STRIPE_SECRET_KEY=""
 STRIPE_WEBHOOK_SECRET=""
 STRIPE_ASSINATURA_PRICE_ID=""
@@ -156,6 +163,7 @@ Após pagamento confirmado no Stripe:
 
 Antes de habilitar em produção, execute no Supabase:
 - `sql-assinaturas-plataforma.sql`
+- `sql-whatsapp-business-integracao.sql` (integração nativa por login no painel admin)
 
 ## Stack principal
 
@@ -164,4 +172,5 @@ Antes de habilitar em produção, execute no Supabase:
 - TypeScript
 - Supabase
 - Mercado Pago
+- WhatsApp Business Cloud API
 - Stripe

@@ -44,6 +44,26 @@ export interface RestauranteIntegracaoPagamento {
   updated_at: string;
 }
 
+export interface RestauranteIntegracaoWhatsappBusiness {
+  id: string;
+  restaurante_id: string;
+  connection_status: 'pendente' | 'conectado' | 'desconectado';
+  access_token: string | null;
+  token_expires_at: string | null;
+  meta_user_id: string | null;
+  meta_user_email: string | null;
+  waba_id: string | null;
+  waba_name: string | null;
+  phone_number_id: string | null;
+  display_phone_number: string | null;
+  template_name: string | null;
+  template_language_code: string | null;
+  template_status: string | null;
+  api_version: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /**
  * Interface mestre da tabela global de insumos físicos (estoque).
  */
