@@ -1,7 +1,8 @@
 // components/ecommerce/ContextoCarrinho.tsx
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { trackAddToCart } from '@/utils/meta-pixel';
 
 export interface Complemento {
@@ -10,6 +11,7 @@ export interface Complemento {
   nome: string;
   preco_adicional: number;
   disponivel: boolean;
+  grupo?: string | null;
 }
 
 export interface ItemCardapio {
@@ -40,38 +42,68 @@ interface ContextoCarrinhoType {
 }
 
 const ContextoCarrinho = createContext<ContextoCarrinhoType | undefined>(undefined);
-const CARRINHO_STORAGE_KEY = 'acelera-food:carrinho';
+const PREFIXO_STORAGE_CARRINHO = 'acelera-food:carrinho';
 
-export function ProvedorCarrinho({ children }: { children: React.ReactNode }) {
-  const [itens, setItens] = useState<ItemCarrinho[]>(() => {
-    if (typeof window === 'undefined') {
+/**
+ * Cada loja (slug) tem seu próprio espaço isolado no localStorage.
+ * Isso garante que abrir a loja A em uma aba e a loja B em outra aba do
+ * mesmo navegador nunca misture os itens de uma sacola com a da outra —
+ * cada slug lê e escreve exclusivamente na sua própria chave.
+ */
+function montarChaveCarrinho(slug: string) {
+  return `${PREFIXO_STORAGE_CARRINHO}:${slug || 'sem-loja'}`;
+}
+
+function lerCarrinhoDoStorage(chave: string): ItemCarrinho[] {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  try {
+    const carrinhoSalvo = window.localStorage.getItem(chave);
+    if (!carrinhoSalvo) {
       return [];
     }
 
-    try {
-      const carrinhoSalvo = window.localStorage.getItem(CARRINHO_STORAGE_KEY);
-      if (!carrinhoSalvo) {
-        return [];
-      }
-
-      const parsed = JSON.parse(carrinhoSalvo) as ItemCarrinho[];
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-    } catch (error) {
-      console.error('Falha ao restaurar carrinho do localStorage:', error);
-    }
-
+    const parsed = JSON.parse(carrinhoSalvo) as ItemCarrinho[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error('Falha ao restaurar carrinho do localStorage:', error);
     return [];
-  });
+  }
+}
+
+export function ProvedorCarrinho({ children }: { children: React.ReactNode }) {
+  const params = useParams();
+  const slugAtual = (params?.slug as string) || '';
+  const chaveCarrinhoAtual = montarChaveCarrinho(slugAtual);
+
+  const [itens, setItens] = useState<ItemCarrinho[]>(() => lerCarrinhoDoStorage(chaveCarrinhoAtual));
+  const chaveCarregadaRef = useRef(chaveCarrinhoAtual);
+
+  // Se o usuário trocar de loja durante a navegação (slug diferente na URL),
+  // descarta o carrinho em memória da loja anterior e recarrega, isoladamente,
+  // o carrinho salvo para a nova loja — nunca reaproveita itens de outra loja.
+  useEffect(() => {
+    if (chaveCarregadaRef.current !== chaveCarrinhoAtual) {
+      chaveCarregadaRef.current = chaveCarrinhoAtual;
+      setItens(lerCarrinhoDoStorage(chaveCarrinhoAtual));
+    }
+  }, [chaveCarrinhoAtual]);
 
   useEffect(() => {
+    if (chaveCarregadaRef.current !== chaveCarrinhoAtual) {
+      // Ainda não recarregou o carrinho da loja nova neste ciclo; evita
+      // persistir por engano os itens da loja anterior sob a chave nova.
+      return;
+    }
+
     try {
-      window.localStorage.setItem(CARRINHO_STORAGE_KEY, JSON.stringify(itens));
+      window.localStorage.setItem(chaveCarrinhoAtual, JSON.stringify(itens));
     } catch (error) {
       console.error('Falha ao persistir carrinho no localStorage:', error);
     }
-  }, [itens]);
+  }, [itens, chaveCarrinhoAtual]);
 
   const adicionarItem = (produto: ItemCardapio, adicionais: Complemento[] = []) => {
     const adicionaisIds = adicionais.map(a => a.id).sort().join('-');
@@ -119,7 +151,7 @@ export function ProvedorCarrinho({ children }: { children: React.ReactNode }) {
   const limparCarrinho = () => {
     setItens([]);
     try {
-      window.localStorage.removeItem(CARRINHO_STORAGE_KEY);
+      window.localStorage.removeItem(chaveCarrinhoAtual);
     } catch (error) {
       console.error('Falha ao limpar carrinho do localStorage:', error);
     }

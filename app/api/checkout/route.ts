@@ -5,10 +5,13 @@ import {
   montarMetadataPedido,
   montarNotificationUrlMercadoPago,
   normalizarEmailPayer,
+  obterEmailPrincipalPix,
   obterIntegracaoMercadoPagoPorRestauranteId,
   obterTokenMercadoPagoValido,
 } from '@/utils/mercado-pago';
 import { criarPedidoPendente } from '@/utils/pedidos-acompanhamento';
+import { calcularRotaEntrega, geocodificarEndereco, montarEnderecoParaGeocodificacao } from '@/utils/google-maps';
+import { calcularTempoPreparoEstimado } from '@/utils/estimativa-chegada';
 import type { DadosClientePedido } from '@/utils/pedido-status';
 
 const MP_API_BASE = 'https://api.mercadopago.com';
@@ -16,6 +19,7 @@ const MP_API_BASE = 'https://api.mercadopago.com';
 interface ItemCliente {
   item_cardapio_id: string;
   quantidade: number;
+  complementoIds?: string[];
 }
 
 interface RequestBody {
@@ -23,12 +27,30 @@ interface RequestBody {
   paymentMethod: 'PIX' | 'CARTAO';
   itens: ItemCliente[];
   dadosCliente: DadosClientePedido;
+  clienteLatitude?: number | null;
+  clienteLongitude?: number | null;
 }
 
 interface ItemCardapioPrecificado {
   id: string;
   nome: string;
   preco_venda: number;
+}
+
+interface ComplementoPrecificado {
+  id: string;
+  item_cardapio_id: string;
+  nome: string;
+  preco_adicional: number;
+  disponivel: boolean;
+}
+
+interface ItemPrecificado {
+  item_cardapio_id: string;
+  quantidade: number;
+  nome: string;
+  precoUnitario: number;
+  adicionais: Array<{ id: string; nome: string; preco_adicional: number }>;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -49,7 +71,9 @@ function validarItens(itens: ItemCliente[]) {
       typeof item.item_cardapio_id === 'string' &&
       item.item_cardapio_id.length > 0 &&
       Number.isInteger(item.quantidade) &&
-      item.quantidade > 0
+      item.quantidade > 0 &&
+      (item.complementoIds === undefined ||
+        (Array.isArray(item.complementoIds) && item.complementoIds.every((id) => typeof id === 'string')))
   );
 }
 
@@ -65,6 +89,10 @@ export async function POST(request: Request) {
     const paymentMethod = body.paymentMethod;
     const itens = Array.isArray(body.itens) ? body.itens : [];
     const dadosCliente = (body.dadosCliente ?? {}) as DadosClientePedido;
+    const coordenadaClienteRecebida =
+      typeof body.clienteLatitude === 'number' && typeof body.clienteLongitude === 'number'
+        ? { latitude: body.clienteLatitude, longitude: body.clienteLongitude }
+        : null;
 
     if (!slug || itens.length === 0) {
       return NextResponse.json({ error: 'Dados da requisição inválidos.' }, { status: 400 });
@@ -85,7 +113,9 @@ export async function POST(request: Request) {
     const supabase = createWebhookAdminClient();
     const { data: restaurante, error: errRestaurante } = await supabase
       .from('restaurantes')
-      .select('id, nome, slug')
+      .select(
+        'id, nome, slug, endereco, latitude, longitude, tempo_preparo_base_minutos, tempo_preparo_incremento_minutos, tempo_preparo_teto_minutos'
+      )
       .eq('slug', slug)
       .maybeSingle();
 
@@ -105,15 +135,56 @@ export async function POST(request: Request) {
     }
 
     const produtos = produtosBanco as ItemCardapioPrecificado[];
-    const precoPorItem = new Map(produtos.map((item) => [item.id, Number(item.preco_venda)]));
+    const produtoPorId = new Map(produtos.map((item) => [item.id, item]));
 
-    const valorTotal = itens.reduce((acc, item) => {
-      const preco = precoPorItem.get(item.item_cardapio_id);
-      if (!preco) {
-        return acc;
+    const idsComplementos = Array.from(
+      new Set(itens.flatMap((item) => item.complementoIds ?? []))
+    );
+
+    let complementosBanco: ComplementoPrecificado[] = [];
+    if (idsComplementos.length > 0) {
+      const { data: complementosData, error: errComplementos } = await supabase
+        .from('complementos_produto')
+        .select('id, item_cardapio_id, nome, preco_adicional, disponivel')
+        .in('id', idsComplementos);
+
+      if (errComplementos) {
+        return NextResponse.json({ error: 'Não foi possível validar os adicionais do carrinho.' }, { status: 400 });
       }
-      return acc + preco * item.quantidade;
-    }, 0);
+      complementosBanco = (complementosData ?? []) as ComplementoPrecificado[];
+    }
+    const complementoPorId = new Map(complementosBanco.map((c) => [c.id, c]));
+
+    const itensPrecificados: ItemPrecificado[] = itens.map((item) => {
+      const produto = produtoPorId.get(item.item_cardapio_id);
+      const precoBase = produto ? Number(produto.preco_venda) : 0;
+
+      const adicionaisValidos = (item.complementoIds ?? [])
+        .map((id) => complementoPorId.get(id))
+        .filter(
+          (complemento): complemento is ComplementoPrecificado =>
+            !!complemento &&
+            complemento.item_cardapio_id === item.item_cardapio_id &&
+            complemento.disponivel === true
+        )
+        .map((complemento) => ({
+          id: complemento.id,
+          nome: complemento.nome,
+          preco_adicional: Number(complemento.preco_adicional),
+        }));
+
+      const precoAdicionais = adicionaisValidos.reduce((acc, adicional) => acc + adicional.preco_adicional, 0);
+
+      return {
+        item_cardapio_id: item.item_cardapio_id,
+        quantidade: item.quantidade,
+        nome: produto?.nome ?? 'Produto',
+        precoUnitario: precoBase + precoAdicionais,
+        adicionais: adicionaisValidos,
+      };
+    });
+
+    const valorTotal = itensPrecificados.reduce((acc, item) => acc + item.precoUnitario * item.quantidade, 0);
 
     if (valorTotal <= 0) {
       return NextResponse.json({ error: 'Valor total inválido.' }, { status: 400 });
@@ -124,6 +195,81 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Mercado Pago não conectado para este restaurante.' }, { status: 409 });
     }
 
+    // Geocodificação + distância/tempo de deslocamento (1ª medição, no
+    // momento da criação do pedido). Só se aplica a entregas — retirada
+    // não tem trajeto até o cliente. Falha aqui nunca deve travar o
+    // checkout: sem coordenadas, o pedido segue normalmente sem estimativa.
+    let clienteLatitude: number | null = null;
+    let clienteLongitude: number | null = null;
+    let distanciaEntregaKm: number | null = null;
+    let tempoDeslocamentoMin: number | null = null;
+
+    if (dadosCliente.tipoEntrega !== 'RETIRADA') {
+      try {
+        let origemLoja =
+          typeof restaurante.latitude === 'number' && typeof restaurante.longitude === 'number'
+            ? { latitude: restaurante.latitude, longitude: restaurante.longitude }
+            : null;
+
+        // Geocodificação preguiçosa do endereço da loja: só acontece uma
+        // vez, na primeira entrega dessa loja, e fica em cache no banco.
+        if (!origemLoja && restaurante.endereco) {
+          origemLoja = await geocodificarEndereco(restaurante.endereco);
+          if (origemLoja) {
+            await supabase
+              .from('restaurantes')
+              .update({ latitude: origemLoja.latitude, longitude: origemLoja.longitude })
+              .eq('id', restaurante.id);
+          }
+        }
+
+        // Prioridade: coordenada que já veio do mapa interativo do cliente
+        // (mais precisa que qualquer geocodificação). Só geocodifica o
+        // texto do endereço como plano B, se o cliente não usou o mapa.
+        let destinoCliente = coordenadaClienteRecebida;
+        if (!destinoCliente) {
+          const enderecoClienteTexto = dadosCliente.endereco
+            ? montarEnderecoParaGeocodificacao(dadosCliente.endereco)
+            : '';
+          destinoCliente = enderecoClienteTexto ? await geocodificarEndereco(enderecoClienteTexto) : null;
+        }
+
+        if (destinoCliente) {
+          clienteLatitude = destinoCliente.latitude;
+          clienteLongitude = destinoCliente.longitude;
+        }
+
+        if (origemLoja && destinoCliente) {
+          const rota = await calcularRotaEntrega(origemLoja, destinoCliente);
+          if (rota) {
+            distanciaEntregaKm = rota.distanciaKm;
+            tempoDeslocamentoMin = rota.duracaoMinutos;
+          }
+        }
+      } catch (error) {
+        console.error('Falha ao calcular geolocalização/distância no checkout (seguindo sem estimativa):', error);
+      }
+    }
+
+    // Tempo de preparo dinâmico: quanto mais pedidos ativos na fila da
+    // cozinha agora, maior a estimativa — calculado uma única vez aqui e
+    // congelado no pedido (não recalculado depois, pra não "pular" pro
+    // cliente por causa de pedidos de terceiros entrando/saindo da fila).
+    const { count: pedidosNaFila } = await supabase
+      .from('pedidos')
+      .select('id', { count: 'exact', head: true })
+      .eq('restaurante_id', restaurante.id)
+      .in('status', ['PENDENTE', 'PAGO', 'PREPARANDO']);
+
+    const tempoPreparoEstimadoMin = calcularTempoPreparoEstimado(
+      {
+        baseMinutos: restaurante.tempo_preparo_base_minutos ?? 20,
+        incrementoPorPedidoMinutos: restaurante.tempo_preparo_incremento_minutos ?? 3,
+        tetoMinutos: restaurante.tempo_preparo_teto_minutos ?? 60,
+      },
+      pedidosNaFila ?? 0
+    );
+
     const externalReference = `pedido-${restaurante.id}-${Date.now()}-${randomUUID()}`;
     const pedido = await criarPedidoPendente({
       restauranteId: restaurante.id,
@@ -131,10 +277,16 @@ export async function POST(request: Request) {
       dadosCliente,
       valorTotal,
       externalReference,
-      itens: itens.map((item) => ({
+      clienteLatitude,
+      clienteLongitude,
+      distanciaEntregaKm,
+      tempoDeslocamentoMin,
+      tempoPreparoEstimadoMin,
+      itens: itensPrecificados.map((item) => ({
         item_cardapio_id: item.item_cardapio_id,
         quantidade: item.quantidade,
-        preco_unitario: Number(precoPorItem.get(item.item_cardapio_id) ?? 0),
+        preco_unitario: item.precoUnitario,
+        adicionais: item.adicionais,
       })),
     });
 
@@ -169,7 +321,10 @@ export async function POST(request: Request) {
           notification_url: notificationUrl,
           external_reference: externalReference,
           payer: {
-            email: emailPayer,
+            // A API de pagamentos (/v1/payments) usada no PIX exige um
+            // e-mail com domínio válido; usamos sempre o e-mail fixo
+            // configurado, não o do cliente (não coletamos e-mail dele).
+            email: obterEmailPrincipalPix(),
             first_name: dadosCliente.nome.trim().split(/\s+/)[0],
             last_name: dadosCliente.nome.trim().split(/\s+/).slice(1).join(' ') || 'Cliente',
           },
@@ -192,6 +347,8 @@ export async function POST(request: Request) {
         qr_code: transactionData.qr_code ?? '',
         qr_code_base64: transactionData.qr_code_base64 ?? '',
         ticket_url: transactionData.ticket_url ?? '',
+        tempo_preparo_estimado_min: tempoPreparoEstimadoMin,
+        tempo_deslocamento_min: tempoDeslocamentoMin,
       });
     }
 
@@ -203,11 +360,14 @@ export async function POST(request: Request) {
         'x-idempotency-key': idempotencyKey,
       },
       body: JSON.stringify({
-        items: itens.map((item) => ({
+        items: itensPrecificados.map((item) => ({
           id: item.item_cardapio_id,
-          title: produtos.find((produto) => produto.id === item.item_cardapio_id)?.nome ?? 'Produto',
+          title:
+            item.adicionais.length > 0
+              ? `${item.nome} (+ ${item.adicionais.map((adicional) => adicional.nome).join(', ')})`
+              : item.nome,
           quantity: item.quantidade,
-          unit_price: Number(precoPorItem.get(item.item_cardapio_id) ?? 0),
+          unit_price: item.precoUnitario,
           currency_id: 'BRL',
         })),
         payer: {

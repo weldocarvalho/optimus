@@ -16,6 +16,7 @@ export interface InsumoFichaInput {
 }
 
 interface ProdutoComposicao {
+  insumo_id: string;
   quantidade_necessaria: number | null;
   insumos:
     | Array<{
@@ -31,13 +32,22 @@ interface ProdutoComposicao {
     | null;
 }
 
+interface ComplementoProdutoBruto {
+  id: string;
+  nome: string;
+  preco_adicional: number | string | null;
+  disponivel: boolean | null;
+}
+
 interface ItemCardapioBruto {
   id: string;
   nome: string;
   descricao: string | null;
   preco_venda: number | null;
   disponivel: boolean | null;
+  imagem_url: string | null;
   composicao_produto: ProdutoComposicao[] | null;
+  complementos_produto: ComplementoProdutoBruto[] | null;
 }
 
 export interface ItemCardapioComCMV {
@@ -46,10 +56,13 @@ export interface ItemCardapioComCMV {
   descricao: string;
   preco_venda: number;
   disponivel: boolean;
+  imagem_url: string | null;
   custo_producao: number;
   percentual_cmv: number;
   margem_lucro: number;
   ingredientes: Array<{ nome: string; quantidade: number; unidade: string }>;
+  fichaTecnica: Array<{ insumo_id: string; quantidade_necessaria: number }>;
+  complementos: Array<{ id: string; nome: string; preco_adicional: number; disponivel: boolean }>;
 }
 
 // Apelido para garantir retrocompatibilidade com os imports de componentes
@@ -235,17 +248,27 @@ export async function listarProdutosComCMV(): Promise<ItemCardapioComCMV[]> {
       descricao,
       preco_venda,
       disponivel,
+      imagem_url,
       composicao_produto (
+        insumo_id,
         quantidade_necessaria,
         insumos (
           nome,
           custo_unitario,
           unidade_medida
         )
+      ),
+      complementos_produto (
+        id,
+        nome,
+        preco_adicional,
+        disponivel
       )
     `)
     .eq('restaurante_id', perfil.restaurante_id)
     .eq('arquivado', false)
+    .order('ordem', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true })
 
   if (error || !itens) return []
 
@@ -253,13 +276,19 @@ export async function listarProdutosComCMV(): Promise<ItemCardapioComCMV[]> {
   return (itens as unknown as ItemCardapioBruto[]).map((item) => {
     let custoProducao = 0;
     const ingredientes: ItemCardapioComCMV['ingredientes'] = [];
+    const fichaTecnica: ItemCardapioComCMV['fichaTecnica'] = [];
 
     if (item.composicao_produto) {
       item.composicao_produto.forEach((comp) => {
         const insumo = Array.isArray(comp.insumos) ? comp.insumos[0] : comp.insumos;
+        const necessaria = Number(comp.quantidade_necessaria || 0);
+
+        if (comp.insumo_id) {
+          fichaTecnica.push({ insumo_id: comp.insumo_id, quantidade_necessaria: necessaria });
+        }
+
         if (insumo) {
           const unitario = Number(insumo.custo_unitario || 0);
-          const necessaria = Number(comp.quantidade_necessaria || 0);
           custoProducao += unitario * necessaria;
 
           ingredientes.push({
@@ -275,16 +304,26 @@ export async function listarProdutosComCMV(): Promise<ItemCardapioComCMV[]> {
     const percentualCmv = precoVenda > 0 ? (custoProducao / precoVenda) * 100 : 0;
     const margemLucro = precoVenda - custoProducao;
 
+    const complementos = (item.complementos_produto || []).map((comp) => ({
+      id: comp.id,
+      nome: comp.nome,
+      preco_adicional: Number(comp.preco_adicional || 0),
+      disponivel: comp.disponivel !== false
+    }));
+
     return {
       id: item.id,
       nome: item.nome,
       descricao: item.descricao || '',
       preco_venda: precoVenda,
       disponivel: !!item.disponivel,
+      imagem_url: item.imagem_url ?? null,
       custo_producao: custoProducao,
       percentual_cmv: percentualCmv,
       margem_lucro: margemLucro,
-      ingredientes
+      ingredientes,
+      fichaTecnica,
+      complementos
     };
   });
 }

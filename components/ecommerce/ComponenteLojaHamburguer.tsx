@@ -81,7 +81,7 @@ export default function ComponenteLojaHamburguer({ restaurante, produtos }: Comp
         </div>
       </div>
 
-      <BarraCarrinhoFlutuante ehAcai={false} />
+      <BarraCarrinhoFlutuante />
     </div>
   );
 }

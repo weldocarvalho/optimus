@@ -1,4 +1,4 @@
-export type StatusPedido = 'PENDENTE' | 'PAGO' | 'PREPARANDO' | 'PRONTO' | 'ENTREGUE';
+export type StatusPedido = 'PENDENTE' | 'PAGO' | 'PREPARANDO' | 'PRONTO' | 'SAIU_PARA_ENTREGA' | 'ENTREGUE';
 export type TipoEntregaPedido = 'ENTREGA' | 'RETIRADA';
 
 export interface DadosClientePedido {
@@ -30,7 +30,7 @@ export function obterTipoEntregaPedido(dadosCliente: Partial<DadosClientePedido>
 }
 
 export function obterEtapasStatusPedido(tipoEntrega: TipoEntregaPedido): EtapaStatusPedido[] {
-  return [
+  const etapas: EtapaStatusPedido[] = [
     {
       chave: 'PENDENTE',
       titulo: 'Pedido recebido',
@@ -54,19 +54,32 @@ export function obterEtapasStatusPedido(tipoEntrega: TipoEntregaPedido): EtapaSt
           ? 'Seu pedido está finalizado e já pode ser retirado na loja.'
           : 'Seu pedido foi finalizado e está pronto para seguir até você.',
     },
-    {
-      chave: 'ENTREGUE',
-      titulo: tipoEntrega === 'RETIRADA' ? 'Retirado' : 'Entregue',
-      descricao:
-        tipoEntrega === 'RETIRADA'
-          ? 'Seu pedido foi retirado com sucesso.'
-          : 'Seu pedido foi entregue com sucesso.',
-    },
   ];
+
+  // O estágio "a caminho" só existe para entregas com motoboy — retirada
+  // pula direto de PRONTO para ENTREGUE (retirado), já que não há trajeto.
+  if (tipoEntrega === 'ENTREGA') {
+    etapas.push({
+      chave: 'SAIU_PARA_ENTREGA',
+      titulo: 'Saiu para entrega',
+      descricao: 'Seu pedido está a caminho com o entregador.',
+    });
+  }
+
+  etapas.push({
+    chave: 'ENTREGUE',
+    titulo: tipoEntrega === 'RETIRADA' ? 'Retirado' : 'Entregue',
+    descricao:
+      tipoEntrega === 'RETIRADA'
+        ? 'Seu pedido foi retirado com sucesso.'
+        : 'Seu pedido foi entregue com sucesso.',
+  });
+
+  return etapas;
 }
 
-export function obterIndiceStatusPedido(status: StatusPedido): number {
-  return ['PENDENTE', 'PAGO', 'PREPARANDO', 'PRONTO', 'ENTREGUE'].indexOf(status);
+export function obterIndiceStatusPedido(status: StatusPedido, tipoEntrega: TipoEntregaPedido): number {
+  return obterEtapasStatusPedido(tipoEntrega).findIndex((etapa) => etapa.chave === status);
 }
 
 export function obterTituloStatusPedido(status: StatusPedido, tipoEntrega: TipoEntregaPedido): string {

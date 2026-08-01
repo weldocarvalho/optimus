@@ -12,7 +12,7 @@ export async function GET(_request: Request, { params }: Params) {
 
     const { data: restaurante, error } = await supabase
       .from('restaurantes')
-      .select('nome, slug, endereco')
+      .select('nome, slug, endereco, latitude, longitude')
       .eq('slug', slug)
       .maybeSingle();
 

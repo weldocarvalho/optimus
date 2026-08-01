@@ -59,6 +59,45 @@ function getErrorMessage(error: unknown): string {
   return 'Erro desconhecido no servidor.'
 }
 
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
+
+/**
+ * Resolve o restaurante e o slug vinculados ao gestor autenticado na sessão
+ * atual. Lança erro (capturado pelas actions chamadoras) se não houver
+ * sessão válida ou vínculo de restaurante — ponto único de checagem de
+ * tenant para as operações administrativas de cardápio.
+ */
+async function obterContextoGestorLogado(supabase: SupabaseServerClient) {
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    throw new Error('Usuário não autenticado no sistema.')
+  }
+
+  const { data: perfil, error: perfilError } = await supabase
+    .from('perfis_admin')
+    .select('restaurante_id')
+    .eq('id', user.id)
+    .single()
+
+  if (perfilError || !perfil?.restaurante_id) {
+    throw new Error('Nenhum restaurante associado a esta conta de gestor.')
+  }
+
+  const restauranteId = perfil.restaurante_id as string
+
+  const { data: restaurante, error: restError } = await supabase
+    .from('restaurantes')
+    .select('slug')
+    .eq('id', restauranteId)
+    .single()
+
+  if (restError || !restaurante?.slug) {
+    throw new Error('Falha crítica ao obter identificador (slug) da loja.')
+  }
+
+  return { restauranteId, slug: restaurante.slug as string }
+}
+
 /**
  * Cadastra um novo item de cardápio no Supabase associando-o automaticamente ao restaurante
  * do gestor autenticado, salvando de forma atômica sua ficha técnica e adicionais customizados,
@@ -67,40 +106,24 @@ function getErrorMessage(error: unknown): string {
 export async function criarProdutoAdmin(dados: DadosNovoProduto) {
   const supabase = await createClient()
 
-  // 1. Recupera o usuário gestor autenticado na sessão do servidor
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) {
-    return { success: false, error: 'Usuário não autenticado no sistema.' }
-  }
-
-  // 2. Localiza o restaurante vinculado ao perfil administrativo do usuário
-  const { data: perfil, error: perfilError } = await supabase
-    .from('perfis_admin')
-    .select('restaurante_id')
-    .eq('id', user.id)
-    .single()
-
-  if (perfilError || !perfil?.restaurante_id) {
-    return { success: false, error: 'Nenhum restaurante associado a esta conta de gestor.' }
-  }
-
-  const restauranteId = perfil.restaurante_id
-
-  // 3. Captura o slug do restaurante para disparar a revalidação sob demanda na rota pública
-  const { data: restaurante, error: restError } = await supabase
-    .from('restaurantes')
-    .select('slug')
-    .eq('id', restauranteId)
-    .single()
-
-  if (restError || !restaurante?.slug) {
-    return { success: false, error: 'Falha crítica ao obter identificador (slug) da loja.' }
-  }
-
   let caminhoImagemUpload: string | null = null
   let produtoCriado = false
 
   try {
+    // 1-3. Resolve o gestor autenticado, o restaurante e o slug vinculados
+    const { restauranteId, slug } = await obterContextoGestorLogado(supabase)
+
+    // Novo item sempre entra no final da lista de exibição do cardápio
+    const { data: ultimoItem } = await supabase
+      .from('itens_cardapio')
+      .select('ordem')
+      .eq('restaurante_id', restauranteId)
+      .order('ordem', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle()
+
+    const proximaOrdem = (ultimoItem?.ordem ?? -1) + 1
+
     let imagemUrl: string | null = null
 
     if (dados.imagemDataUrl) {
@@ -143,7 +166,8 @@ export async function criarProdutoAdmin(dados: DadosNovoProduto) {
         descricao: dados.descricao || null,
         preco_venda: dados.preco_venda,
         imagem_url: imagemUrl,
-        disponivel: dados.disponivel
+        disponivel: dados.disponivel,
+        ordem: proximaOrdem
       })
       .select()
       .single()
@@ -186,7 +210,8 @@ export async function criarProdutoAdmin(dados: DadosNovoProduto) {
 
     // 7. ESTRATÉGIA ON-DEMAND REVALIDATION (Invalidação cirúrgica de cache)
     // Limpa o cache estático gerado do lado do cliente para que o produto apareça no mesmo segundo
-    revalidatePath(`/${restaurante.slug}`)
+    revalidatePath(`/${slug}`)
+    revalidatePath('/admin/produtos')
 
     return { success: true }
   } catch (error: unknown) {
@@ -198,6 +223,190 @@ export async function criarProdutoAdmin(dados: DadosNovoProduto) {
 
     const message = getErrorMessage(error)
     console.error('[SERVER ACTION ERROR] Falha ao registrar produto:', error)
+    return { success: false, error: message }
+  }
+}
+
+/**
+ * Atualiza um item de cardápio já existente do restaurante do gestor logado:
+ * dados básicos, foto (se uma nova for enviada), ficha técnica e adicionais.
+ * Ficha técnica e adicionais são substituídos por completo a cada edição —
+ * não há risco para pedidos já feitos, pois eles guardam o preço e os itens
+ * como um retrato histórico, sem depender do id das linhas de complemento.
+ */
+export async function atualizarProdutoAdmin(itemId: string, dados: DadosNovoProduto) {
+  const supabase = await createClient()
+
+  let caminhoImagemUpload: string | null = null
+
+  try {
+    const { restauranteId, slug } = await obterContextoGestorLogado(supabase)
+
+    // Confirma que o item pertence ao restaurante do gestor logado antes de tocar em qualquer dado
+    const { data: itemAtual, error: itemError } = await supabase
+      .from('itens_cardapio')
+      .select('id, imagem_url')
+      .eq('id', itemId)
+      .eq('restaurante_id', restauranteId)
+      .maybeSingle()
+
+    if (itemError || !itemAtual) {
+      throw new Error('Item de cardápio não encontrado para este restaurante.')
+    }
+
+    let imagemUrl: string | null = itemAtual.imagem_url ?? null
+
+    if (dados.imagemDataUrl) {
+      const imagem = parseImagemDataUrl(dados.imagemDataUrl)
+      caminhoImagemUpload = `${restauranteId}/${crypto.randomUUID()}.${imagem.extensao}`
+
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET_IMAGENS_PRODUTOS)
+        .upload(caminhoImagemUpload, imagem.buffer, {
+          contentType: imagem.mimeType,
+          upsert: false
+        })
+
+      if (uploadError) {
+        if (uploadError.message.includes('Bucket not found')) {
+          throw new Error(
+            `Bucket "${BUCKET_IMAGENS_PRODUTOS}" não encontrado no Supabase Storage. Crie o bucket ou ajuste SUPABASE_PRODUTOS_BUCKET/.env.local.`
+          )
+        }
+        throw new Error(`Falha ao enviar nova imagem do produto: ${uploadError.message}`)
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from(BUCKET_IMAGENS_PRODUTOS)
+        .getPublicUrl(caminhoImagemUpload)
+
+      if (!publicUrlData?.publicUrl) {
+        throw new Error('Falha ao gerar URL pública da nova imagem do produto.')
+      }
+
+      imagemUrl = publicUrlData.publicUrl
+    }
+
+    // 1. Atualiza os dados principais do item
+    const { error: updateError } = await supabase
+      .from('itens_cardapio')
+      .update({
+        nome: dados.nome,
+        descricao: dados.descricao || null,
+        preco_venda: dados.preco_venda,
+        imagem_url: imagemUrl,
+        disponivel: dados.disponivel
+      })
+      .eq('id', itemId)
+
+    if (updateError) throw updateError
+
+    // 2. Substitui a ficha técnica (composicao_produto) por completo
+    const { error: deleteFichaError } = await supabase
+      .from('composicao_produto')
+      .delete()
+      .eq('item_cardapio_id', itemId)
+
+    if (deleteFichaError) throw deleteFichaError
+
+    const insumosFiltrados = Object.entries(dados.fichaTecnica).filter(([, qtd]) => parseFloat(qtd) > 0)
+
+    if (insumosFiltrados.length > 0) {
+      const composicaoInserts = insumosFiltrados.map(([insumoId, qtd]) => ({
+        item_cardapio_id: itemId,
+        insumo_id: insumoId,
+        quantidade_necessaria: parseFloat(qtd)
+      }))
+
+      const { error: compError } = await supabase
+        .from('composicao_produto')
+        .insert(composicaoInserts)
+
+      if (compError) throw compError
+    }
+
+    // 3. Substitui os adicionais opcionais (complementos_produto) por completo
+    const { error: deleteComplementosError } = await supabase
+      .from('complementos_produto')
+      .delete()
+      .eq('item_cardapio_id', itemId)
+
+    if (deleteComplementosError) throw deleteComplementosError
+
+    if (dados.adicionais.length > 0) {
+      const complementosInserts = dados.adicionais.map(adicional => ({
+        item_cardapio_id: itemId,
+        nome: adicional.nome,
+        preco_adicional: adicional.preco,
+        disponivel: true
+      }))
+
+      const { error: complError } = await supabase
+        .from('complementos_produto')
+        .insert(complementosInserts)
+
+      if (complError) throw complError
+    }
+
+    revalidatePath(`/${slug}`)
+    revalidatePath('/admin/produtos')
+
+    return { success: true }
+  } catch (error: unknown) {
+    if (caminhoImagemUpload) {
+      await supabase.storage
+        .from(BUCKET_IMAGENS_PRODUTOS)
+        .remove([caminhoImagemUpload])
+    }
+
+    const message = getErrorMessage(error)
+    console.error('[SERVER ACTION ERROR] Falha ao atualizar produto:', error)
+    return { success: false, error: message }
+  }
+}
+
+/**
+ * Persiste a nova ordem de exibição dos itens de cardápio no cardápio
+ * público, a partir da lista completa de ids já reordenada pelo gestor no
+ * painel. Valida que todos os ids pertencem ao restaurante do gestor
+ * autenticado antes de gravar — nenhum item de outra loja pode ser afetado.
+ */
+export async function atualizarOrdemItensCardapio(idsOrdenados: string[]) {
+  const supabase = await createClient()
+
+  try {
+    const { restauranteId, slug } = await obterContextoGestorLogado(supabase)
+
+    const { data: itensDoRestaurante, error: itensError } = await supabase
+      .from('itens_cardapio')
+      .select('id')
+      .eq('restaurante_id', restauranteId)
+
+    if (itensError) throw itensError
+
+    const idsValidos = new Set((itensDoRestaurante ?? []).map((item) => item.id as string))
+    const todosValidos = idsOrdenados.every((id) => idsValidos.has(id))
+
+    if (!todosValidos || idsOrdenados.length === 0) {
+      throw new Error('Itens inválidos para este restaurante.')
+    }
+
+    const resultados = await Promise.all(
+      idsOrdenados.map((id, indice) =>
+        supabase.from('itens_cardapio').update({ ordem: indice }).eq('id', id)
+      )
+    )
+
+    const primeiroErro = resultados.find((resultado) => resultado.error)
+    if (primeiroErro?.error) throw primeiroErro.error
+
+    revalidatePath(`/${slug}`)
+    revalidatePath('/admin/produtos')
+
+    return { success: true }
+  } catch (error: unknown) {
+    const message = getErrorMessage(error)
+    console.error('[SERVER ACTION ERROR] Falha ao reordenar cardápio:', error)
     return { success: false, error: message }
   }
 }
@@ -219,13 +428,24 @@ export async function obterCardapioPorSlug(slug: string) {
   // 1. Busca primeiro o ID e nome do restaurante usando o slug da URL
   const { data: restaurante, error: erroRestaurante } = await supabase
     .from('restaurantes')
-    .select('id, nome, tipo, endereco, logo_url')
+    .select('id, nome, tipo, endereco, logo_url, horarios_funcionamento')
     .eq('slug', slugNormalizado)
     .maybeSingle()
 
   if (erroRestaurante || !restaurante) {
     console.error('Erro ao localizar restaurante pelo slug:', erroRestaurante)
     return { restaurante: null, produtos: [] }
+  }
+
+  // Registra a visita no funil de métricas (melhor esforço: uma falha aqui
+  // nunca pode impedir a vitrine pública de carregar).
+  const hoje = new Date().toISOString().split('T')[0]
+  const { error: erroFunil } = await supabase.rpc('incrementar_visitas_funil', {
+    p_restaurante_id: restaurante.id,
+    p_data: hoje,
+  })
+  if (erroFunil) {
+    console.error('Falha ao registrar visita no funil de métricas:', erroFunil)
   }
 
   // 2. Busca os itens de cardápio do restaurante com JOIN reativo na tabela complementos_produto
@@ -246,11 +466,13 @@ export async function obterCardapioPorSlug(slug: string) {
         nome,
         preco_adicional,
         disponivel,
-        created_at
+        created_at,
+        grupo
       )
     `)
     .eq('restaurante_id', restaurante.id)
     .eq('disponivel', true) // Garante que só exibe itens ativos na vitrine pública
+    .order('ordem', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true })
 
   if (erroProdutos) {

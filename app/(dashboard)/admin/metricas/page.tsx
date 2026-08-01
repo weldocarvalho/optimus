@@ -1,15 +1,19 @@
 // app/(dashboard)/admin/metricas/page.tsx
 import React from 'react';
 import { obterMetricasGrowthDoDia } from '@/actions/adminMetricas';
+import { obterMetricasMetaAdsDoDia } from '@/actions/adminMetricasMetaAds';
 import { CardsPerformanceGrowth } from '@/components/metricas/CardsPerformanceGrowth';
 import { GraficoFunilGrowth } from '@/components/metricas/GraficoFunilGrowth';
-import { MockMetricasMetaAds } from '@/components/metricas/MockMetricasMetaAds';
+import { MetricasMetaAds } from '@/components/metricas/MetricasMetaAds';
 import { AdminNavHeader } from '@/components/admin/AdminNavHeader';
 
 export const revalidate = 0; // Desativa cache para garantir dados financeiros frescos em tempo real
 
 export default async function PainelMetricasAdmin() {
-  const dadosGrowth = await obterMetricasGrowthDoDia();
+  const [dadosGrowth, dadosMetaAds] = await Promise.all([
+    obterMetricasGrowthDoDia(),
+    obterMetricasMetaAdsDoDia(),
+  ]);
 
   return (
     <div className="min-h-screen bg-[#F3F3F3] text-[#1A1A1A] font-sans antialiased flex items-start justify-center p-4 sm:p-8 md:py-12">
@@ -22,7 +26,7 @@ export default async function PainelMetricasAdmin() {
 
         {/* GRÁFICO DO FUNIL DE CONVERSÃO DO TRÁFEGO */}
         <GraficoFunilGrowth dados={dadosGrowth} />
-        <MockMetricasMetaAds />
+        <MetricasMetaAds dados={dadosMetaAds} />
 
       </div>
     </div>
