@@ -328,6 +328,17 @@ export function normalizarEmailPayer(email?: string | null, slug?: string, telef
   return `pagamento-${telefoneNormalizado}@${slugNormalizado}.local`;
 }
 
+/**
+ * E-mail fixo usado como `payer.email` nos pagamentos PIX (`/v1/payments`).
+ * Essa API exige um e-mail com domínio válido — o fallback sintético
+ * "...@slug.local" gerado por `normalizarEmailPayer` é rejeitado pelo
+ * Mercado Pago ("payer.email must be a valid email"), então pro PIX usamos
+ * sempre este e-mail fixo em vez do e-mail (ou fallback) do cliente.
+ */
+export function obterEmailPrincipalPix(): string {
+  return process.env.PIX_PAYMENT_MAIN_EMAIL?.trim() || 'weldocarvalho@outlook.com';
+}
+
 export function montarMetadataPedido(params: {
   slug: string;
   pedidoId: string;

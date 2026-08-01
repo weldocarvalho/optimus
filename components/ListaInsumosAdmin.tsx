@@ -61,10 +61,10 @@ export default function ListaInsumosAdmin({ insumosIniciais }: ListaProps) {
     });
   };
 
-  // Dispara a atualização do custo e fecha o modal reativamente
-  const handleAtualizarInsumo = (id: string, custo: number, estoque: number, minimo: number) => {
+  // Dispara a atualização do nome/custo e fecha o modal reativamente
+  const handleAtualizarInsumo = (id: string, nome: string, custo: number, estoque: number, minimo: number) => {
     startTransition(async () => {
-      if ((await atualizarCustoInsumoAdmin(id, custo, estoque, minimo)).success) {
+      if ((await atualizarCustoInsumoAdmin(id, nome, custo, estoque, minimo)).success) {
         setInsumoParaEditar(null); router.refresh();
       }
     });
@@ -79,7 +79,7 @@ export default function ListaInsumosAdmin({ insumosIniciais }: ListaProps) {
           <h1 className="text-lg font-bold tracking-tight text-[#1A1A1A]">Matérias-primas e custos</h1>
           <p className="mt-0.5 text-xs font-medium text-zinc-500">Gerenciamento de estoque e valores de compra dos fornecedores</p>
         </div>
-        <button onClick={() => setModalNovoAberto(true)} className="rounded-xl bg-[#E16349] px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-[#c8523a]">+ Novo Insumo</button>
+        <button onClick={() => setModalNovoAberto(true)} className="rounded-xl bg-[#E16349] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#c8523a]">+ Novo Insumo</button>
       </div>
 
       <div className="flex flex-col gap-3 border-b border-zinc-100 bg-[#F8F8F8]/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">

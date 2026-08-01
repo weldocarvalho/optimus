@@ -15,6 +15,21 @@ function urlBase64ToUint8Array(base64String: string) {
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }
 
+function estaNoIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent);
+}
+
+// No iOS, Web Push só funciona quando o site foi adicionado à Tela de
+// Início e está sendo aberto a partir desse ícone — dentro do Safari
+// comum, `pushManager.subscribe()` pode até resolver "com sucesso" sem que
+// nenhuma notificação jamais chegue. `navigator.standalone` é a forma
+// clássica do iOS reportar isso; `display-mode: standalone` cobre os
+// demais casos (Android, desktop).
+function estaRodandoComoPwaInstalado() {
+  const navegadorPadrao = navigator as Navigator & { standalone?: boolean };
+  return window.matchMedia('(display-mode: standalone)').matches || navegadorPadrao.standalone === true;
+}
+
 export function AtivadorPushPedido({ trackingToken }: AtivadorPushPedidoProps) {
   const publicKey = process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY ?? '';
   const [estado, setEstado] = useState<EstadoPush>('idle');
@@ -23,6 +38,10 @@ export function AtivadorPushPedido({ trackingToken }: AtivadorPushPedidoProps) {
   const suportado = useMemo(() => {
     return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && Boolean(publicKey);
   }, [publicKey]);
+
+  const precisaInstalarPwaNoIOS = useMemo(() => {
+    return typeof window !== 'undefined' && estaNoIOS() && !estaRodandoComoPwaInstalado();
+  }, []);
 
   useEffect(() => {
     if (!suportado) {
@@ -103,13 +122,26 @@ export function AtivadorPushPedido({ trackingToken }: AtivadorPushPedidoProps) {
     );
   }
 
+  if (precisaInstalarPwaNoIOS) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+        <p className="text-sm font-semibold text-amber-900">Instale o site para ativar as notificações</p>
+        <p className="mt-1 text-xs text-amber-800">
+          No iPhone, as notificações só funcionam depois de adicionar este site à Tela de Início: toque no botão
+          Compartilhar do Safari, escolha &quot;Adicionar à Tela de Início&quot; e abra o app pelo ícone criado. Depois
+          disso, volte aqui para ativar as notificações do pedido.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-zinc-900">Notificações no navegador</p>
           <p className="mt-1 text-xs text-zinc-500">
-            Ative para receber avisos quando o pedido mudar de etapa. Em iPhone, instale o site na tela inicial para melhor suporte.
+            Ative para receber avisos quando o pedido mudar de etapa.
           </p>
         </div>
         <button

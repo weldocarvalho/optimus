@@ -204,14 +204,14 @@ export default function ModalNovoProduto({ aberto, onFechar, insumosDisponiveis 
             <button 
               type="button" 
               onClick={onFechar} 
-              className="flex-1 rounded-xl bg-zinc-100 py-3 text-xs font-semibold uppercase tracking-wider text-zinc-600 hover:bg-zinc-200 transition-colors"
+              className="flex-1 rounded-xl bg-zinc-100 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-600 hover:bg-zinc-200 transition-colors"
             >
               Cancelar
             </button>
             <button 
               type="submit" 
               disabled={isPending} 
-              className="flex-1 rounded-xl bg-[#E16349] py-3 text-xs font-semibold uppercase tracking-wider text-white hover:bg-[#c8523a] disabled:opacity-50 transition-all"
+              className="flex-1 rounded-xl bg-[#E16349] py-2 text-xs font-semibold uppercase tracking-wider text-white hover:bg-[#c8523a] disabled:opacity-50 transition-all"
             >
               {isPending ? 'Sincronizando Ecossistema...' : 'Confirmar & Publicar'}
             </button>

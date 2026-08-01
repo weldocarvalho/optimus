@@ -118,6 +118,11 @@ export interface ComplementoProduto {
   preco_adicional: number;
   disponivel: boolean;
   created_at: string;
+  // Agrupamento visual opcional (ex: "Adicionais" / "Coberturas"). Usado por
+  // templates de loja que exibem os complementos separados em seções —
+  // quando ausente, o complemento entra numa lista única (comportamento
+  // padrão da Hamburgueria e da Açaiteria padrão).
+  grupo?: string | null;
 }
 
 export type FormaPagamento = 'PIX' | 'DINHEIRO' | 'CARTAO';

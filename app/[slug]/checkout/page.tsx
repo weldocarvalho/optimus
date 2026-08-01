@@ -8,18 +8,19 @@ import Link from 'next/link';
 import { useCarrinho } from '@/components/ecommerce/ContextoCarrinho';
 import AbasEntrega from '@/components/ecommerce/checkout/AbasEntrega';
 import CampoCepEntrega from '@/components/ecommerce/checkout/CampoCepEntrega';
-import BotaoLocalizacaoGps from '@/components/ecommerce/checkout/BotaoLocalizacaoGps';
 import CartaoRetirada from '@/components/ecommerce/checkout/CartaoRetirada';
 import FormularioEnderecoEntrega from '@/components/ecommerce/checkout/FormularioEnderecoEntrega';
+import { SeletorLocalizacaoMapa, type ResultadoLocalizacaoMapa } from '@/components/shared/SeletorLocalizacaoMapa';
 import type { AbaEntregaCheckout, EtapaCheckout } from '@/components/ecommerce/checkout/tipos';
 import { trackInitiateCheckout, trackPurchase } from '@/utils/meta-pixel';
+import { registrarCheckoutIniciadoFunil } from '@/actions/metricasFunil';
 
 export default function TelaDeCheckoutDedicada() {
   const params = useParams();
   const router = useRouter();
   const slug = (params?.slug as string) || '';
   
-  const { itens, adicionarItem, removerItem, valorTotal, totalItens } = useCarrinho();
+  const { itens, adicionarItem, removerItem, valorTotal, totalItens, limparCarrinho } = useCarrinho();
   
   // Controle de Etapas Sequenciais na Nova Tela
   const [etapaCheckout, setEtapaCheckout] = useState<EtapaCheckout>('SACOLA');
@@ -35,9 +36,31 @@ export default function TelaDeCheckoutDedicada() {
   const [emailCliente, setEmailCliente] = useState('');
   const [carregandoPagamento, setCarregandoPagamento] = useState(false);
   const [dadosPix, setDadosPix] = useState<{ qr_code: string; qr_code_base64?: string; payment_id: string } | null>(null);
+  const [pixCopiado, setPixCopiado] = useState(false);
   const [urlCheckoutCartao, setUrlCheckoutCartao] = useState<string | null>(null);
-  const [trackingPedido, setTrackingPedido] = useState<{ tracking_url: string; codigo_acompanhamento: string; pedido_id: string } | null>(null);
+  const [trackingPedido, setTrackingPedido] = useState<{
+    tracking_url: string;
+    codigo_acompanhamento: string;
+    pedido_id: string;
+    estimativaMin: number | null;
+  } | null>(null);
   const [enderecoLoja, setEnderecoLoja] = useState('Endereço do estabelecimento');
+  const [latitudeLoja, setLatitudeLoja] = useState<number | null>(null);
+  const [longitudeLoja, setLongitudeLoja] = useState<number | null>(null);
+
+  // Coordenada do cliente capturada pelo mapa interativo (aba GPS ou o mapa
+  // que abre sozinho na 1ª compra) — não aparece na tela, só viaja junto
+  // no pedido pra alimentar o cálculo de distância/ETA.
+  const [clienteLatitude, setClienteLatitude] = useState<number | null>(null);
+  const [clienteLongitude, setClienteLongitude] = useState<number | null>(null);
+  // Controla o modal do mapa da aba CEP (1ª compra) — abre quando a busca
+  // por telefone não encontra cadastro salvo. Só fecha quando o
+  // usuário confirma ou cancela — não fecha sozinho a cada arraste do pino.
+  const [modalMapaCepAberto, setModalMapaCepAberto] = useState(false);
+  // Última posição capturada pelo mapa do modal, ainda não confirmada pelo
+  // usuário — só vira o valor "oficial" (clienteLatitude/clienteLongitude +
+  // preenchimento dos campos) quando ele clica em "Confirmar localização".
+  const [resultadoMapaCepPendente, setResultadoMapaCepPendente] = useState<ResultadoLocalizacaoMapa | null>(null);
 
   useEffect(() => {
     let ativo = true;
@@ -47,8 +70,13 @@ export default function TelaDeCheckoutDedicada() {
         const resposta = await fetch(`/api/restaurantes/${slug}/resumo`, { cache: 'no-store' });
         if (!resposta.ok) return;
         const body = await resposta.json();
-        if (ativo && typeof body?.endereco === 'string' && body.endereco.trim()) {
+        if (!ativo) return;
+        if (typeof body?.endereco === 'string' && body.endereco.trim()) {
           setEnderecoLoja(body.endereco);
+        }
+        if (typeof body?.latitude === 'number' && typeof body?.longitude === 'number') {
+          setLatitudeLoja(body.latitude);
+          setLongitudeLoja(body.longitude);
         }
       } catch (error) {
         console.error('Erro ao carregar endereço da loja:', error);
@@ -97,6 +125,7 @@ export default function TelaDeCheckoutDedicada() {
         itens: itens.map((item) => ({ id: item.produto.id, quantidade: item.quantidade })),
         valorTotal,
       });
+      void registrarCheckoutIniciadoFunil(slug);
       setEtapaCheckout('ENTREGA');
     } else if (etapaCheckout === 'ENTREGA') {
       setEtapaCheckout('PAGAMENTO');
@@ -106,6 +135,7 @@ export default function TelaDeCheckoutDedicada() {
   const criarPagamento = async (novoMetodo: 'PIX' | 'CARTAO') => {
     setCarregandoPagamento(true);
     setDadosPix(null);
+    setPixCopiado(false);
     setUrlCheckoutCartao(null);
     setTrackingPedido(null);
 
@@ -119,6 +149,7 @@ export default function TelaDeCheckoutDedicada() {
           itens: itens.map((item) => ({
             item_cardapio_id: item.produto.id,
             quantidade: item.quantidade,
+            complementoIds: item.adicionaisEscolhidos.map((adicional) => adicional.id),
           })),
           dadosCliente: {
             nome: nomeCliente,
@@ -127,6 +158,8 @@ export default function TelaDeCheckoutDedicada() {
             tipoEntrega: abaEntregaAtiva === 'RETIRADA' ? 'RETIRADA' : 'ENTREGA',
             endereco: abaEntregaAtiva === 'RETIRADA' ? undefined : dadosEndereco,
           },
+          clienteLatitude: abaEntregaAtiva === 'RETIRADA' ? null : clienteLatitude,
+          clienteLongitude: abaEntregaAtiva === 'RETIRADA' ? null : clienteLongitude,
         }),
       });
 
@@ -136,10 +169,18 @@ export default function TelaDeCheckoutDedicada() {
       }
 
       if (body.tracking_url && body.codigo_acompanhamento && body.pedido_id) {
+        const preparo = Number(body.tempo_preparo_estimado_min);
+        const deslocamento = Number(body.tempo_deslocamento_min);
+        const estimativaMin =
+          Number.isFinite(preparo) && preparo > 0
+            ? preparo + (Number.isFinite(deslocamento) && deslocamento > 0 ? deslocamento : 0)
+            : null;
+
         setTrackingPedido({
           tracking_url: body.tracking_url,
           codigo_acompanhamento: body.codigo_acompanhamento,
           pedido_id: body.pedido_id,
+          estimativaMin,
         });
       }
 
@@ -159,6 +200,7 @@ export default function TelaDeCheckoutDedicada() {
         });
       } else if (body.checkout_url) {
         setUrlCheckoutCartao(body.checkout_url);
+        limparCarrinho();
         window.location.href = body.checkout_url;
       }
     } catch (error) {
@@ -176,7 +218,13 @@ export default function TelaDeCheckoutDedicada() {
     try {
       const resposta = await fetch(`/api/restaurantes/${slug}/clientes?telefone=${encodeURIComponent(digitos)}`);
       const dados = await resposta.json();
-      if (!dados?.encontrado) return;
+
+      if (!dados?.encontrado) {
+        // Sem cadastro salvo: primeira compra desse telefone — abre o modal
+        // do mapa na aba CEP pra assistir o preenchimento do endereço.
+        setModalMapaCepAberto(true);
+        return;
+      }
 
       if (!nomeCliente && dados.nome) setNomeCliente(dados.nome);
       if (!emailCliente && dados.email) setEmailCliente(dados.email);
@@ -193,28 +241,38 @@ export default function TelaDeCheckoutDedicada() {
     }
   };
 
-  const handleCapturarGps = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude } = position.coords;
-          try {
-            const resposta = await fetch(`/api/geocode?lat=${latitude}&lon=${longitude}`);
-            const dados = await resposta.json();
-            if (dados.address) {
-              setRua(dados.address.road || '');
-              setBairro(dados.address.suburb || dados.address.neighbourhood || '');
-              setTimeout(() => {
-                document.getElementById('input-numero')?.focus();
-              }, 100);
-            }
-          } catch (error) {
-            console.error('Erro ao processar mapa:', error);
-          }
-        },
-        (error) => console.error(error)
-      );
+  // Handler usado pela aba GPS: sempre captura a coordenada e preenche os
+  // campos de texto assim que o mapa dispara um resultado (sem etapa de
+  // confirmação — a aba GPS não mostra campos editáveis).
+  const handleLocalizacaoConfirmada = (resultado: ResultadoLocalizacaoMapa) => {
+    setClienteLatitude(resultado.latitude);
+    setClienteLongitude(resultado.longitude);
+
+    if (resultado.endereco) {
+      if (resultado.endereco.rua) setRua(resultado.endereco.rua);
+      if (resultado.endereco.numero) setNumero(resultado.endereco.numero);
+      if (resultado.endereco.bairro) setBairro(resultado.endereco.bairro);
+      if (resultado.endereco.cep) setCep(resultado.endereco.cep);
     }
+  };
+
+  // No modal do mapa da aba CEP, o mapa só guarda a posição temporariamente
+  // a cada arraste — nada é aplicado ao formulário até o usuário confirmar.
+  const handleCapturaTemporariaMapaCep = (resultado: ResultadoLocalizacaoMapa) => {
+    setResultadoMapaCepPendente(resultado);
+  };
+
+  const handleConfirmarMapaCep = () => {
+    if (resultadoMapaCepPendente) {
+      handleLocalizacaoConfirmada(resultadoMapaCepPendente);
+    }
+    setModalMapaCepAberto(false);
+    setResultadoMapaCepPendente(null);
+  };
+
+  const handleCancelarMapaCep = () => {
+    setModalMapaCepAberto(false);
+    setResultadoMapaCepPendente(null);
   };
 
   return (
@@ -322,6 +380,34 @@ export default function TelaDeCheckoutDedicada() {
                 <span className="font-bold text-zinc-900">{totalItens} {totalItens === 1 ? 'item' : 'itens'} na sacola</span>
               </div>
 
+              {/* Informações de Contato Obrigatórias (Estilo Carteira iOS) — telefone primeiro para permitir a busca de cadastro */}
+              <div className="bg-white border border-zinc-200/60 rounded-2xl p-4 space-y-3 shadow-sm">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">WhatsApp para Notificações</label>
+                  <input
+                    type="tel"
+                    required
+                    autoFocus
+                    placeholder="(00) 99999-9999"
+                    value={telefoneCliente}
+                    onChange={(e) => setTelefoneCliente(e.target.value)}
+                    onBlur={handleBuscarClientePorTelefone}
+                    className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:bg-white focus:border-zinc-400 transition-all text-zinc-900 placeholder-zinc-400"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Nome Completo</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: João Silva"
+                    value={nomeCliente}
+                    onChange={(e) => setNomeCliente(e.target.value)}
+                    className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:bg-white focus:border-zinc-400 transition-all text-zinc-900 placeholder-zinc-400"
+                  />
+                </div>
+              </div>
+
               {/* Seletor de Tipo de Entrega Monocromático */}
               <div className="bg-white border border-zinc-200/60 rounded-2xl overflow-hidden shadow-sm flex flex-col">
                 <AbasEntrega
@@ -329,13 +415,32 @@ export default function TelaDeCheckoutDedicada() {
                   onChangeAba={setAbaEntregaAtiva}
                   classeCorTextoAtiva="text-zinc-900"
                 />
-                
-                <div className="p-4 space-y-4">
-                  {abaEntregaAtiva === 'CEP' && <CampoCepEntrega cep={cep} onChangeCep={setCep} abaAtiva={abaEntregaAtiva} />}
-                  {abaEntregaAtiva === 'GPS' && <BotaoLocalizacaoGps onCapturarLocalizacao={handleCapturarGps} />}
-                  {abaEntregaAtiva === 'RETIRADA' && <CartaoRetirada endereco={enderecoLoja} />}
 
-                  {abaEntregaAtiva !== 'RETIRADA' && (
+                <div className="p-4 space-y-4">
+                  {abaEntregaAtiva === 'CEP' && (
+                    <CampoCepEntrega cep={cep} onChangeCep={setCep} abaAtiva={abaEntregaAtiva} />
+                  )}
+
+                  {abaEntregaAtiva === 'GPS' && (
+                    <div className="space-y-3">
+                      <SeletorLocalizacaoMapa
+                        latitudeInicial={clienteLatitude}
+                        longitudeInicial={clienteLongitude}
+                        onLocalizacaoConfirmada={handleLocalizacaoConfirmada}
+                      />
+                      {(rua || bairro) && (
+                        <div className="rounded-xl bg-zinc-50 border border-zinc-200/60 px-3.5 py-2.5 text-xs text-zinc-600">
+                          {[rua, numero, bairro].filter(Boolean).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {abaEntregaAtiva === 'RETIRADA' && (
+                    <CartaoRetirada endereco={enderecoLoja} latitude={latitudeLoja} longitude={longitudeLoja} />
+                  )}
+
+                  {abaEntregaAtiva === 'CEP' && (
                     <FormularioEnderecoEntrega
                       rua={rua}
                       onChangeRua={setRua}
@@ -345,43 +450,6 @@ export default function TelaDeCheckoutDedicada() {
                       onChangeBairro={setBairro}
                     />
                   )}
-                </div>
-              </div>
-
-              {/* Informações de Contato Obrigatórias (Estilo Carteira iOS) */}
-              <div className="bg-white border border-zinc-200/60 rounded-2xl p-4 space-y-3 shadow-sm">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Nome Completo</label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="Ex: João Silva" 
-                    value={nomeCliente} 
-                    onChange={(e) => setNomeCliente(e.target.value)}
-                    className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:bg-white focus:border-zinc-400 transition-all text-zinc-900 placeholder-zinc-400"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">WhatsApp para Notificações</label>
-                  <input 
-                    type="tel" 
-                    required 
-                    placeholder="(00) 99999-9999" 
-                    value={telefoneCliente}
-                    onChange={(e) => setTelefoneCliente(e.target.value)}
-                    onBlur={handleBuscarClientePorTelefone}
-                    className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:bg-white focus:border-zinc-400 transition-all text-zinc-900 placeholder-zinc-400"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">E-mail para pagamento</label>
-                  <input
-                    type="email"
-                    placeholder="cliente@exemplo.com"
-                    value={emailCliente}
-                    onChange={(e) => setEmailCliente(e.target.value)}
-                    className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:bg-white focus:border-zinc-400 transition-all text-zinc-900 placeholder-zinc-400"
-                  />
                 </div>
               </div>
             </div>
@@ -434,9 +502,53 @@ export default function TelaDeCheckoutDedicada() {
                     className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-[11px] font-mono text-zinc-700"
                     rows={4}
                   />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(dadosPix.qr_code);
+                        setPixCopiado(true);
+                        setTimeout(() => setPixCopiado(false), 3000);
+                      } catch (error) {
+                        console.error('Falha ao copiar código PIX:', error);
+                      }
+                    }}
+                    className={`inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-semibold uppercase tracking-wider transition ${
+                      pixCopiado
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-[#E16349] text-white hover:bg-[#c8523a]'
+                    }`}
+                  >
+                    {pixCopiado ? (
+                      <>
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                          <path
+                            fillRule="evenodd"
+                            d="M16.704 5.29a1 1 0 010 1.415l-7.5 7.5a1 1 0 01-1.415 0l-3.5-3.5a1 1 0 111.415-1.414l2.793 2.792 6.793-6.793a1 1 0 011.414 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        Código copiado
+                      </>
+                    ) : (
+                      <>
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                          <path d="M7 3a2 2 0 00-2 2v9a2 2 0 002 2h7a2 2 0 002-2V8.414A2 2 0 0015.414 7L11 2.586A2 2 0 009.586 2H7z" />
+                          <path d="M4 7a2 2 0 00-2 2v9a2 2 0 002 2h7a2 2 0 002-2v-1H6a2 2 0 01-2-2V7z" />
+                        </svg>
+                        Copiar código Pix (copia e cola)
+                      </>
+                    )}
+                  </button>
+                  {trackingPedido?.estimativaMin ? (
+                    <p className="text-center text-xs text-zinc-500">
+                      Previsão inicial: cerca de {trackingPedido.estimativaMin} min após a confirmação do pagamento.
+                    </p>
+                  ) : null}
                   {trackingPedido ? (
                     <Link
                       href={trackingPedido.tracking_url}
+                      onClick={() => limparCarrinho()}
                       className="inline-flex w-full items-center justify-center rounded-xl bg-zinc-900 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-white transition hover:bg-zinc-800"
                     >
                       Acompanhar pedido
@@ -455,7 +567,7 @@ export default function TelaDeCheckoutDedicada() {
         </div>
         
         {/* Rodapé de Fechamento de Conta de Alta Performance Financeira */}
-        <footer className="p-6 border-t border-zinc-100 bg-white space-y-4 shrink-0 select-none w-full max-w-xl mx-auto">
+        <footer className="p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] border-t border-zinc-100 bg-white space-y-4 shrink-0 select-none w-full max-w-xl mx-auto">
           <div className="flex items-center justify-between">
             <div>
               <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Subtotal Líquido</span>
@@ -487,6 +599,49 @@ export default function TelaDeCheckoutDedicada() {
         </footer>
 
       </div>
+
+      {/* Modal do mapa interativo, em tela cheia — abre sozinho quando o
+          telefone digitado não tem cadastro salvo (1ª compra na aba CEP).
+          Só fecha com uma ação explícita do usuário (confirmar ou
+          cancelar). */}
+      {modalMapaCepAberto && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-white">
+          <div className="shrink-0 border-b border-zinc-100 p-5 pb-3">
+            <h2 className="text-sm font-extrabold text-zinc-900">Marque sua localização no mapa</h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              Não encontramos um cadastro para esse telefone. Mova o mapa até posicionar o pino no endereço de
+              entrega — a gente preenche os campos automaticamente.
+            </p>
+          </div>
+
+          <div className="min-h-0 flex-1 p-5 py-3">
+            <SeletorLocalizacaoMapa
+              latitudeInicial={clienteLatitude}
+              longitudeInicial={clienteLongitude}
+              onLocalizacaoConfirmada={handleCapturaTemporariaMapaCep}
+              preencherAltura
+            />
+          </div>
+
+          <div className="flex shrink-0 gap-2 border-t border-zinc-100 p-5 pt-3">
+            <button
+              type="button"
+              onClick={handleCancelarMapaCep}
+              className="flex-1 py-3 rounded-xl border border-zinc-200 text-xs font-bold uppercase tracking-wider text-zinc-600 hover:bg-zinc-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmarMapaCep}
+              disabled={!resultadoMapaCepPendente}
+              className="flex-1 py-3 rounded-xl bg-zinc-900 text-xs font-bold uppercase tracking-wider text-white hover:bg-zinc-800 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+            >
+              Confirmar localização
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

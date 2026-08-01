@@ -52,6 +52,11 @@ interface ListaWabasMeta {
   };
 }
 
+interface MetaBusiness {
+  id: string;
+  name?: string;
+}
+
 interface TemplateWhatsappMeta {
   id?: string;
   name: string;
@@ -110,6 +115,41 @@ function getConfigOAuthMeta(): ConfigOAuthMeta {
 
 function buildGraphUrl(path: string, apiVersion: string) {
   return `${META_GRAPH_BASE_URL}/${apiVersion}${path}`;
+}
+
+async function fetchGraphJson<T>(
+  path: string,
+  accessToken: string,
+  options?: {
+    query?: Record<string, string>;
+    method?: 'GET' | 'POST';
+    body?: unknown;
+  }
+) {
+  const { apiVersion } = getConfigOAuthMeta();
+  const url = new URL(buildGraphUrl(path, apiVersion));
+  for (const [key, value] of Object.entries(options?.query ?? {})) {
+    url.searchParams.set(key, value);
+  }
+
+  const response = await fetch(url.toString(), {
+    method: options?.method ?? 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: options?.body ? JSON.stringify(options.body) : undefined,
+  });
+
+  const payload = (await response.json()) as T & {
+    error?: { message?: string };
+  };
+
+  if (!response.ok) {
+    throw new Error(payload.error?.message || 'Falha ao consultar a Graph API da Meta.');
+  }
+
+  return payload;
 }
 
 function encodeBase64Url(input: string) {
@@ -205,88 +245,96 @@ async function trocarPorTokenLongaDuracao(tokenCurto: string) {
 }
 
 async function buscarUsuarioMeta(accessToken: string) {
-  const { apiVersion } = getConfigOAuthMeta();
-  const url = new URL(buildGraphUrl('/me', apiVersion));
-  url.searchParams.set('fields', 'id,name,email');
-  url.searchParams.set('access_token', accessToken);
+  const payload = await fetchGraphJson<UsuarioMeta>('/me', accessToken, {
+    query: { fields: 'id,name,email' },
+  });
 
-  const response = await fetch(url.toString());
-  const payload = (await response.json()) as UsuarioMeta & { error?: { message?: string } };
-  if (!response.ok || !payload.id) {
-    throw new Error(payload.error?.message || 'Falha ao carregar usuário da Meta.');
+  if (!payload.id) {
+    throw new Error('Falha ao carregar usuário da Meta.');
   }
 
-  return payload;
+  return payload as UsuarioMeta;
 }
 
-async function buscarWabaEPhoneNumber(accessToken: string) {
-  const { apiVersion } = getConfigOAuthMeta();
-  const url = new URL(buildGraphUrl('/me', apiVersion));
-  url.searchParams.set(
-    'fields',
-    'owned_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name}}'
-  );
-  url.searchParams.set('access_token', accessToken);
+async function buscarBusinessesMeta(accessToken: string) {
+  const payload = await fetchGraphJson<{ data?: MetaBusiness[] }>('/me/businesses', accessToken, {
+    query: { fields: 'id,name', limit: '100' },
+  });
 
-  const response = await fetch(url.toString());
-  const payload = (await response.json()) as ListaWabasMeta & { error?: { message?: string } };
-  if (!response.ok) {
-    throw new Error(payload.error?.message || 'Falha ao carregar contas do WhatsApp Business.');
-  }
-
-  const conta = (payload.owned_whatsapp_business_accounts?.data ?? []).find(
-    (waba) => (waba.phone_numbers?.data ?? []).length > 0
-  );
-
-  if (!conta) {
-    throw new Error('Nenhuma conta de WhatsApp Business com número ativo foi encontrada.');
-  }
-
-  const phone = conta.phone_numbers?.data?.[0];
-  if (!phone?.id) {
-    throw new Error('Nenhum phone number id válido foi encontrado na conta de WhatsApp Business.');
-  }
-
-  return {
-    wabaId: conta.id,
-    wabaName: conta.name ?? null,
-    phoneNumberId: phone.id,
-    displayPhoneNumber: phone.display_phone_number ?? phone.verified_name ?? null,
-  };
+  return payload.data ?? [];
 }
 
-async function listarTemplatesWhatsapp(accessToken: string, wabaId: string) {
-  const { apiVersion } = getConfigOAuthMeta();
-  const url = new URL(buildGraphUrl(`/${wabaId}/message_templates`, apiVersion));
-  url.searchParams.set('fields', 'id,name,status,language,category');
-  url.searchParams.set('limit', '100');
-
-  const response = await fetch(url.toString(), {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
+async function buscarWabasDaBusiness(accessToken: string, businessId: string) {
+  const payload = await fetchGraphJson<ListaWabasMeta>(`/${businessId}`, accessToken, {
+    query: {
+      fields: 'owned_whatsapp_business_accounts{id,name}',
     },
   });
 
-  const payload = (await response.json()) as { data?: TemplateWhatsappMeta[]; error?: { message?: string } };
-  if (!response.ok) {
-    throw new Error(payload.error?.message || 'Falha ao listar templates de WhatsApp Business.');
+  return payload.owned_whatsapp_business_accounts?.data ?? [];
+}
+
+async function buscarPhoneNumbersDaWaba(accessToken: string, wabaId: string) {
+  const payload = await fetchGraphJson<{ data?: WhatsappPhoneNumber[] }>(`/${wabaId}/phone_numbers`, accessToken, {
+    query: {
+      fields: 'id,display_phone_number,verified_name',
+      limit: '100',
+    },
+  });
+
+  return payload.data ?? [];
+}
+
+async function buscarWabaEPhoneNumber(accessToken: string) {
+  const businesses = await buscarBusinessesMeta(accessToken);
+  if (businesses.length === 0) {
+    throw new Error('Nenhum Business Manager foi encontrado para este usuário da Meta.');
   }
+
+  for (const business of businesses) {
+    const wabas = await buscarWabasDaBusiness(accessToken, business.id);
+
+    for (const conta of wabas) {
+      const phoneNumbers = await buscarPhoneNumbersDaWaba(accessToken, conta.id);
+      const phone = phoneNumbers[0];
+      if (!phone?.id) {
+        continue;
+      }
+
+      return {
+        businessId: business.id,
+        businessName: business.name ?? null,
+        wabaId: conta.id,
+        wabaName: conta.name ?? null,
+        phoneNumberId: phone.id,
+        displayPhoneNumber: phone.display_phone_number ?? phone.verified_name ?? null,
+      };
+    }
+  }
+
+  throw new Error('Nenhuma conta de WhatsApp Business com número ativo foi encontrada para os negócios vinculados.');
+}
+
+async function listarTemplatesWhatsapp(accessToken: string, wabaId: string) {
+  const payload = await fetchGraphJson<{ data?: TemplateWhatsappMeta[] }>(`/${wabaId}/message_templates`, accessToken, {
+    query: {
+      fields: 'id,name,status,language,category',
+      limit: '100',
+    },
+  });
 
   return payload.data ?? [];
 }
 
 async function criarTemplatePadraoWhatsapp(accessToken: string, wabaId: string) {
-  const { apiVersion } = getConfigOAuthMeta();
-  const url = buildGraphUrl(`/${wabaId}/message_templates`, apiVersion);
   const templateName = normalizarNomeTemplate(`status_pedido_${Date.now().toString(36)}`);
 
-  const response = await fetch(url, {
+  const payload = await fetchGraphJson<{
+    id?: string;
+    status?: string;
+  }>(`/${wabaId}/message_templates`, accessToken, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+    body: {
       name: templateName,
       language: 'pt_BR',
       category: 'UTILITY',
@@ -296,17 +344,11 @@ async function criarTemplatePadraoWhatsapp(accessToken: string, wabaId: string) 
           text: 'Olá! Atualização do pedido de {{1}}: {{2}}. {{3}} Acompanhe aqui: {{4}}',
         },
       ],
-    }),
+    },
   });
 
-  const payload = (await response.json()) as {
-    id?: string;
-    status?: string;
-    error?: { message?: string };
-  };
-
-  if (!response.ok || !payload.id) {
-    throw new Error(payload.error?.message || 'Falha ao criar template padrão de status de pedido.');
+  if (!payload.id) {
+    throw new Error('Falha ao criar template padrão de status de pedido.');
   }
 
   return {

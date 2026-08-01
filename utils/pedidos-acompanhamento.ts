@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createWebhookAdminClient } from '@/utils/supabase/webhook';
 import { enviarNotificacoesStatusPedido, type PedidoParaNotificacao } from '@/utils/notificacoes-pedido';
+import { calcularRotaEntrega } from '@/utils/google-maps';
 import {
   type DadosClientePedido,
   type StatusPedido,
@@ -8,10 +9,23 @@ import {
   obterTipoEntregaPedido,
 } from '@/utils/pedido-status';
 
+export interface AdicionalPedidoInput {
+  id: string;
+  nome: string;
+  preco_adicional: number;
+}
+
 interface ItemPedidoInput {
   item_cardapio_id: string;
   quantidade: number;
   preco_unitario: number;
+  adicionais?: AdicionalPedidoInput[];
+}
+
+interface AdicionalPedidoBruto {
+  id: string;
+  nome: string;
+  preco_adicional: number;
 }
 
 interface PedidoPublicoLinhaBruta {
@@ -22,12 +36,15 @@ interface PedidoPublicoLinhaBruta {
     nome: string;
     imagem_url?: string | null;
   }> | null;
+  itens_pedido_complementos: AdicionalPedidoBruto[] | null;
 }
 
 interface RestauranteRelacionadoBruto {
   nome: string;
   slug: string;
   endereco?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 interface PedidoPublicoBruto {
@@ -39,7 +56,13 @@ interface PedidoPublicoBruto {
   created_at: string;
   updated_at: string;
   codigo_acompanhamento: string;
+  codigo_confirmacao_entrega: string;
   mercado_pago_payment_id?: string | null;
+  cliente_latitude?: number | null;
+  cliente_longitude?: number | null;
+  distancia_entrega_km?: number | null;
+  tempo_deslocamento_min?: number | null;
+  tempo_preparo_estimado_min?: number | null;
   restaurantes: RestauranteRelacionadoBruto | RestauranteRelacionadoBruto[] | null;
   itens_pedido: PedidoPublicoLinhaBruta[] | null;
 }
@@ -54,9 +77,13 @@ export interface PedidoPublico {
   created_at: string;
   updated_at: string;
   codigo_acompanhamento: string;
+  codigo_confirmacao_entrega: string;
   mercado_pago_payment_id: string | null;
   dados_cliente: DadosClientePedido;
   endereco_entrega: string | null;
+  distancia_entrega_km: number | null;
+  tempo_deslocamento_min: number | null;
+  tempo_preparo_estimado_min: number | null;
   restaurante: {
     nome: string;
     slug: string;
@@ -68,6 +95,7 @@ export interface PedidoPublico {
     imagem_url: string | null;
     quantidade: number;
     preco_unitario: number;
+    adicionais: Array<{ id: string; nome: string; preco_adicional: number }>;
   }>;
 }
 
@@ -115,6 +143,11 @@ export function gerarCodigoAcompanhamentoPedido() {
   return randomUUID().replace(/-/g, '');
 }
 
+/** Código curto que o cliente informa ao entregador para confirmar a entrega certa. */
+export function gerarCodigoConfirmacaoEntrega() {
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
+
 export function gerarExternalReferencePedido(restauranteId: string, codigoAcompanhamento: string) {
   return `pedido_${restauranteId}_${codigoAcompanhamento}`;
 }
@@ -130,9 +163,14 @@ function normalizarPedidoPublico(bruto: PedidoPublicoBruto): PedidoPublico {
     created_at: bruto.created_at,
     updated_at: bruto.updated_at,
     codigo_acompanhamento: bruto.codigo_acompanhamento,
+    codigo_confirmacao_entrega: bruto.codigo_confirmacao_entrega,
     mercado_pago_payment_id: bruto.mercado_pago_payment_id ?? null,
     dados_cliente: bruto.dados_cliente,
     endereco_entrega: formatarEnderecoPedido(bruto.dados_cliente),
+    distancia_entrega_km: bruto.distancia_entrega_km != null ? Number(bruto.distancia_entrega_km) : null,
+    tempo_deslocamento_min: bruto.tempo_deslocamento_min != null ? Number(bruto.tempo_deslocamento_min) : null,
+    tempo_preparo_estimado_min:
+      bruto.tempo_preparo_estimado_min != null ? Number(bruto.tempo_preparo_estimado_min) : null,
     restaurante: {
       nome: restaurante?.nome ?? 'Restaurante',
       slug: restaurante?.slug ?? '',
@@ -144,6 +182,11 @@ function normalizarPedidoPublico(bruto: PedidoPublicoBruto): PedidoPublico {
       imagem_url: item.itens_cardapio?.[0]?.imagem_url ?? null,
       quantidade: Number(item.quantidade),
       preco_unitario: Number(item.preco_unitario),
+      adicionais: (item.itens_pedido_complementos ?? []).map((adicional) => ({
+        id: adicional.id,
+        nome: adicional.nome,
+        preco_adicional: Number(adicional.preco_adicional),
+      })),
     })),
   };
 }
@@ -155,9 +198,15 @@ export async function criarPedidoPendente(params: {
   itens: ItemPedidoInput[];
   valorTotal: number;
   externalReference: string;
+  clienteLatitude?: number | null;
+  clienteLongitude?: number | null;
+  distanciaEntregaKm?: number | null;
+  tempoDeslocamentoMin?: number | null;
+  tempoPreparoEstimadoMin?: number | null;
 }) {
   const supabase = getSupabase();
   const codigoAcompanhamento = gerarCodigoAcompanhamentoPedido();
+  const codigoConfirmacaoEntrega = gerarCodigoConfirmacaoEntrega();
   const agora = new Date().toISOString();
 
   const { data: pedido, error: errPedido } = await supabase
@@ -170,7 +219,13 @@ export async function criarPedidoPendente(params: {
         forma_pagamento: params.formaPagamento,
         dados_cliente: params.dadosCliente,
         codigo_acompanhamento: codigoAcompanhamento,
+        codigo_confirmacao_entrega: codigoConfirmacaoEntrega,
         mercado_pago_external_reference: params.externalReference,
+        cliente_latitude: params.clienteLatitude ?? null,
+        cliente_longitude: params.clienteLongitude ?? null,
+        distancia_entrega_km: params.distanciaEntregaKm ?? null,
+        tempo_deslocamento_min: params.tempoDeslocamentoMin ?? null,
+        tempo_preparo_estimado_min: params.tempoPreparoEstimadoMin ?? null,
         updated_at: agora,
       },
     ])
@@ -188,10 +243,38 @@ export async function criarPedidoPendente(params: {
     preco_unitario: item.preco_unitario,
   }));
 
-  const { error: errItens } = await supabase.from('itens_pedido').insert(linhasItens);
-  if (errItens) {
+  // .insert().select() retorna as linhas na mesma ordem em que foram enviadas,
+  // o que permite religar cada item_pedido criado aos adicionais que o cliente
+  // escolheu para aquele item específico (params.itens[mesmo índice]).
+  const { data: itensInseridos, error: errItens } = await supabase
+    .from('itens_pedido')
+    .insert(linhasItens)
+    .select('id');
+
+  if (errItens || !itensInseridos) {
     await supabase.from('pedidos').delete().eq('id', pedido.id);
-    throw errItens;
+    throw errItens || new Error('Falha ao registrar itens do pedido.');
+  }
+
+  const linhasAdicionais = itensInseridos.flatMap((itemInserido, indice) => {
+    const adicionaisDoItem = params.itens[indice]?.adicionais ?? [];
+    return adicionaisDoItem.map((adicional) => ({
+      item_pedido_id: itemInserido.id,
+      complemento_produto_id: adicional.id,
+      nome: adicional.nome,
+      preco_adicional: adicional.preco_adicional,
+    }));
+  });
+
+  if (linhasAdicionais.length > 0) {
+    const { error: errAdicionais } = await supabase
+      .from('itens_pedido_complementos')
+      .insert(linhasAdicionais);
+
+    if (errAdicionais) {
+      await supabase.from('pedidos').delete().eq('id', pedido.id);
+      throw errAdicionais;
+    }
   }
 
   await upsertClientePorTelefone(params.restauranteId, params.dadosCliente);
@@ -216,9 +299,15 @@ export async function buscarPedidoPublicoPorToken(slug: string, token: string) {
       created_at,
       updated_at,
       codigo_acompanhamento,
+      codigo_confirmacao_entrega,
       mercado_pago_payment_id,
-      restaurantes ( nome, slug, endereco ),
-      itens_pedido ( id, quantidade, preco_unitario, itens_cardapio ( nome, imagem_url ) )
+      cliente_latitude,
+      cliente_longitude,
+      distancia_entrega_km,
+      tempo_deslocamento_min,
+      tempo_preparo_estimado_min,
+      restaurantes ( nome, slug, endereco, latitude, longitude ),
+      itens_pedido ( id, quantidade, preco_unitario, itens_cardapio ( nome, imagem_url ), itens_pedido_complementos ( id, nome, preco_adicional ) )
     `)
     .eq('codigo_acompanhamento', token)
     .maybeSingle();
@@ -250,8 +339,13 @@ export async function buscarPedidoInternoPorId(pedidoId: string) {
       codigo_acompanhamento,
       mercado_pago_payment_id,
       restaurante_id,
-      restaurantes ( nome, slug, endereco ),
-      itens_pedido ( id, quantidade, preco_unitario, item_cardapio_id, itens_cardapio ( nome, imagem_url ) )
+      cliente_latitude,
+      cliente_longitude,
+      distancia_entrega_km,
+      tempo_deslocamento_min,
+      tempo_preparo_estimado_min,
+      restaurantes ( nome, slug, endereco, latitude, longitude ),
+      itens_pedido ( id, quantidade, preco_unitario, item_cardapio_id, itens_cardapio ( nome, imagem_url ), itens_pedido_complementos ( id, nome, preco_adicional ) )
     `)
     .eq('id', pedidoId)
     .maybeSingle();
@@ -387,6 +481,37 @@ export async function atualizarStatusPedidoComNotificacoes(params: {
 
   if (params.mercadoPagoPaymentId) {
     payloadAtualizacao.mercado_pago_payment_id = params.mercadoPagoPaymentId;
+  }
+
+  // No momento do despacho ("saiu para entrega"), o trânsito pode ter
+  // mudado desde o checkout — recalcula distância/tempo com a Routes API
+  // usando as coordenadas já geocodificadas (loja e cliente). Falha aqui
+  // nunca deve travar a mudança de status; só mantém a estimativa antiga.
+  if (params.novoStatus === 'SAIU_PARA_ENTREGA' && statusAnterior !== 'SAIU_PARA_ENTREGA') {
+    try {
+      const restauranteRelacionado = Array.isArray(pedidoAtual.restaurantes)
+        ? pedidoAtual.restaurantes[0]
+        : pedidoAtual.restaurantes;
+
+      const origemValida =
+        typeof restauranteRelacionado?.latitude === 'number' && typeof restauranteRelacionado?.longitude === 'number';
+      const destinoValido =
+        typeof pedidoAtual.cliente_latitude === 'number' && typeof pedidoAtual.cliente_longitude === 'number';
+
+      if (origemValida && destinoValido) {
+        const rota = await calcularRotaEntrega(
+          { latitude: restauranteRelacionado.latitude as number, longitude: restauranteRelacionado.longitude as number },
+          { latitude: pedidoAtual.cliente_latitude as number, longitude: pedidoAtual.cliente_longitude as number }
+        );
+
+        if (rota) {
+          payloadAtualizacao.distancia_entrega_km = rota.distanciaKm;
+          payloadAtualizacao.tempo_deslocamento_min = rota.duracaoMinutos;
+        }
+      }
+    } catch (error) {
+      console.error('Falha ao recalcular rota de entrega no despacho (mantendo estimativa anterior):', error);
+    }
   }
 
   const { error: errUpdate } = await supabase

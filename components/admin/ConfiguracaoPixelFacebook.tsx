@@ -59,7 +59,7 @@ export function ConfiguracaoPixelFacebook({ pixelIdInicial }: ConfiguracaoPixelF
         type="button"
         onClick={handleSalvar}
         disabled={salvando}
-        className="rounded-xl bg-zinc-900 px-4 py-3 text-sm font-bold uppercase tracking-wider text-white disabled:opacity-50"
+        className="rounded-xl bg-zinc-900 px-3.5 py-2 text-sm font-bold uppercase tracking-wider text-white disabled:opacity-50"
       >
         {salvando ? 'Salvando...' : 'Salvar Pixel'}
       </button>

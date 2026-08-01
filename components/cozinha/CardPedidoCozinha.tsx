@@ -2,15 +2,27 @@
 'use client';
 
 import React from 'react';
-import { PedidoCozinha } from '@/app/(dashboard)/admin/cozinha/useCozinha';
+import { EntregadorCozinha, PedidoCozinha } from '@/app/(dashboard)/admin/cozinha/useCozinha';
 
 interface CardPedidoCozinhaProps {
   pedido: PedidoCozinha;
   onAvancarStatus: (pedidoId: string, novoStatus: PedidoCozinha['status']) => void;
   isMutating: boolean;
+  entregadores: EntregadorCozinha[];
+  onAtribuirEntregador: (pedidoId: string, entregadorId: string | null) => void;
 }
 
-export function CardPedidoCozinha({ pedido, onAvancarStatus, isMutating }: CardPedidoCozinhaProps) {
+export function CardPedidoCozinha({
+  pedido,
+  onAvancarStatus,
+  isMutating,
+  entregadores,
+  onAtribuirEntregador,
+}: CardPedidoCozinhaProps) {
+  const ehEntrega = pedido.dados_cliente?.tipoEntrega !== 'RETIRADA';
+  const mostrarAtribuicaoEntregador =
+    ehEntrega && (pedido.status === 'PRONTO' || pedido.status === 'SAIU_PARA_ENTREGA');
+
   const obterProximoStatus = (statusAtual: PedidoCozinha['status']): PedidoCozinha['status'] | null => {
     switch (statusAtual) {
       case 'PENDENTE':
@@ -19,6 +31,10 @@ export function CardPedidoCozinha({ pedido, onAvancarStatus, isMutating }: CardP
       case 'PREPARANDO':
         return 'PRONTO';
       case 'PRONTO':
+        // Só existe estágio "a caminho" quando há motoboy envolvido; retirada
+        // vai direto de PRONTO para ENTREGUE (retirado pelo cliente).
+        return ehEntrega ? 'SAIU_PARA_ENTREGA' : 'ENTREGUE';
+      case 'SAIU_PARA_ENTREGA':
         return 'ENTREGUE';
       default:
         return null;
@@ -39,6 +55,8 @@ export function CardPedidoCozinha({ pedido, onAvancarStatus, isMutating }: CardP
         return 'bg-[#E16349] text-white hover:bg-[#c9533a]';
       case 'PRONTO':
         return 'bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200';
+      case 'SAIU_PARA_ENTREGA':
+        return 'bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200';
       default:
         return 'bg-zinc-100 text-zinc-400 cursor-not-allowed';
     }
@@ -53,7 +71,9 @@ export function CardPedidoCozinha({ pedido, onAvancarStatus, isMutating }: CardP
       case 'PREPARANDO':
         return 'Concluir Preparo';
       case 'PRONTO':
-        return 'Despachar';
+        return ehEntrega ? 'Despachar' : 'Confirmar Retirada';
+      case 'SAIU_PARA_ENTREGA':
+        return 'Confirmar Entrega';
       default:
         return 'Finalizado';
     }
@@ -87,29 +107,59 @@ export function CardPedidoCozinha({ pedido, onAvancarStatus, isMutating }: CardP
 
         <div className="space-y-2">
           {pedido.itens_pedido.map((item) => (
-            <div key={item.id} className="flex items-start justify-between text-xs">
-              <span className="text-zinc-700 font-semibold leading-tight">
-                {item.item_cardapio.nome}
-              </span>
-              <span className="ml-4 rounded border border-zinc-200/40 bg-[#F3F3F3] px-1.5 py-0.5 text-[10px] font-mono font-semibold text-zinc-500">
-                {item.quantidade}x
-              </span>
+            <div key={item.id} className="text-xs">
+              <div className="flex items-start justify-between">
+                <span className="text-zinc-700 font-semibold leading-tight">
+                  {item.item_cardapio.nome}
+                </span>
+                <span className="ml-4 rounded border border-zinc-200/40 bg-[#F3F3F3] px-1.5 py-0.5 text-[10px] font-mono font-semibold text-zinc-500">
+                  {item.quantidade}x
+                </span>
+              </div>
+              {item.adicionais.length > 0 && (
+                <p className="mt-0.5 text-[10px] font-medium text-[#E16349]">
+                  + {item.adicionais.map((adicional) => adicional.nome).join(', ')}
+                </p>
+              )}
             </div>
           ))}
         </div>
       </div>
+
+      {mostrarAtribuicaoEntregador && (
+        <div className="mt-3 border-t border-zinc-100 pt-3">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Entregador</label>
+          <div className="relative mt-1">
+            <select
+              value={pedido.entregador_id ?? ''}
+              onChange={(e) => onAtribuirEntregador(pedido.id, e.target.value || null)}
+              className="w-full appearance-none rounded-xl border border-zinc-200 bg-white py-2 pl-3 pr-8 text-xs font-semibold text-zinc-700 transition hover:border-zinc-300 focus:border-[#E16349] focus:outline-none focus:ring-2 focus:ring-[#E16349]/20"
+            >
+              <option value="">Sem entregador atribuído</option>
+              {entregadores.map((entregador) => (
+                <option key={entregador.id} value={entregador.id}>
+                  {entregador.nome}
+                </option>
+              ))}
+            </select>
+            <svg className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 pt-3 border-t border-zinc-100">
         {proximoStatus ? (
           <button
             onClick={() => onAvancarStatus(pedido.id, proximoStatus)}
             disabled={isMutating}
-            className={`w-full rounded-xl py-2.5 text-xs font-semibold tracking-wide uppercase transition-all duration-150 disabled:opacity-50 ${obterEstiloBotaoAcao(pedido.status)}`}
+            className={`w-full rounded-xl py-2 text-xs font-semibold tracking-wide uppercase transition-all duration-150 disabled:opacity-50 ${obterEstiloBotaoAcao(pedido.status)}`}
           >
             {isMutating ? 'Processando...' : obterTextoBotao(pedido.status)}
           </button>
         ) : (
-          <div className="w-full rounded-xl bg-zinc-100 py-2.5 text-center text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+          <div className="w-full rounded-xl bg-zinc-100 py-2 text-center text-xs font-semibold tracking-wide text-zinc-400 uppercase">
             Despachado
           </div>
         )}

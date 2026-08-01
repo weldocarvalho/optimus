@@ -13,6 +13,7 @@ import {
   obterTituloStatusPedido,
   obterTipoEntregaPedido,
 } from '@/utils/pedido-status';
+import { calcularMinutosRestantes } from '@/utils/estimativa-chegada';
 
 interface PedidoAcompanhamento {
   id: string;
@@ -22,10 +23,14 @@ interface PedidoAcompanhamento {
   created_at: string;
   updated_at: string;
   codigo_acompanhamento: string;
+  codigo_confirmacao_entrega: string;
   mercado_pago_payment_id: string | null;
   dados_cliente: DadosClientePedido;
   endereco_entrega: string | null;
   tipo_entrega: 'ENTREGA' | 'RETIRADA';
+  distancia_entrega_km: number | null;
+  tempo_deslocamento_min: number | null;
+  tempo_preparo_estimado_min: number | null;
   restaurante: {
     nome: string;
     slug: string;
@@ -37,6 +42,7 @@ interface PedidoAcompanhamento {
     imagem_url: string | null;
     quantidade: number;
     preco_unitario: number;
+    adicionais: Array<{ id: string; nome: string; preco_adicional: number }>;
   }>;
 }
 
@@ -58,12 +64,69 @@ function formatarData(data: string) {
   });
 }
 
+// Linha "RÓTULO: xx min" com um indicador pulsante (sinaliza contagem "ao
+// vivo") e uma transição suave toda vez que o número muda — o `key={minutos}`
+// força o React a remontar o número, disparando a animação de entrada.
+function LinhaContagemRegressiva({ rotulo, minutos }: { rotulo: string; minutos: number }) {
+  return (
+    <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 shadow-sm">
+      <span className="relative flex h-2 w-2 shrink-0">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#E16349] opacity-75" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-[#E16349]" />
+      </span>
+      <p className="text-xs font-semibold text-zinc-700">
+        <span className="uppercase tracking-wide text-zinc-500">{rotulo}:</span>{' '}
+        <span
+          key={minutos}
+          className="inline-block animate-in fade-in slide-in-from-bottom-1 font-bold tabular-nums text-zinc-900 duration-300"
+        >
+          {minutos} min
+        </span>
+      </p>
+    </div>
+  );
+}
+
+// Contagem regressiva client-side "de verdade": o ponto de partida é
+// calculado uma única vez, na primeira renderização deste componente (via
+// inicializador preguiçoso do useState — não recalcula a cada poll), e a
+// partir daí um cronômetro local vai decrescendo sozinho a cada minuto. O
+// componente pai remonta esse componente (via renderização condicional)
+// exatamente no instante em que a fase começa a valer, o que reinicia o
+// ponto de partida certinho pra fase nova.
+function ContagemRegressiva({
+  rotulo,
+  totalMinutos,
+  referenciaIso,
+}: {
+  rotulo: string;
+  totalMinutos: number;
+  referenciaIso: string;
+}) {
+  const [minutos, setMinutos] = useState(() => calcularMinutosRestantes(totalMinutos, referenciaIso));
+
+  useEffect(() => {
+    const intervalo = window.setInterval(() => {
+      setMinutos((atual) => (atual > 0 ? atual - 1 : atual));
+    }, 60000);
+    return () => window.clearInterval(intervalo);
+  }, []);
+
+  return <LinhaContagemRegressiva rotulo={rotulo} minutos={minutos} />;
+}
+
 export function PainelAcompanhamentoPedido({ pedidoInicial, pagamento }: PainelAcompanhamentoPedidoProps) {
   const [pedido, setPedido] = useState(pedidoInicial);
   const [erro, setErro] = useState('');
   const tipoEntrega = useMemo(() => obterTipoEntregaPedido(pedido.dados_cliente), [pedido.dados_cliente]);
   const etapas = useMemo(() => obterEtapasStatusPedido(tipoEntrega), [tipoEntrega]);
-  const indiceAtual = useMemo(() => obterIndiceStatusPedido(pedido.status), [pedido.status]);
+  const indiceAtual = useMemo(() => obterIndiceStatusPedido(pedido.status, tipoEntrega), [pedido.status, tipoEntrega]);
+
+  // Fases que definem qual contagem regressiva mostrar — o preparo conta
+  // desde a criação do pedido, a entrega só começa a contar a partir do
+  // despacho (status SAIU_PARA_ENTREGA).
+  const emFasePreparo = pedido.status === 'PENDENTE' || pedido.status === 'PAGO' || pedido.status === 'PREPARANDO';
+  const emFaseEntrega = pedido.status === 'SAIU_PARA_ENTREGA';
 
   useEffect(() => {
     let ativo = true;
@@ -136,6 +199,40 @@ export function PainelAcompanhamentoPedido({ pedidoInicial, pagamento }: PainelA
                 {pedido.forma_pagamento}
               </div>
             </div>
+
+            {(emFasePreparo && pedido.tempo_preparo_estimado_min != null) ||
+            (emFaseEntrega && pedido.tempo_deslocamento_min != null) ? (
+              <div className="mt-3 space-y-2">
+                {emFasePreparo && pedido.tempo_preparo_estimado_min != null ? (
+                  <ContagemRegressiva
+                    rotulo="Preparo"
+                    totalMinutos={pedido.tempo_preparo_estimado_min}
+                    referenciaIso={pedido.created_at}
+                  />
+                ) : null}
+                {emFaseEntrega && pedido.tempo_deslocamento_min != null ? (
+                  <ContagemRegressiva
+                    rotulo="Entrega"
+                    totalMinutos={pedido.tempo_deslocamento_min}
+                    referenciaIso={pedido.updated_at}
+                  />
+                ) : null}
+              </div>
+            ) : pedido.status === 'PRONTO' ? (
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 shadow-sm">
+                <svg className="h-4 w-4 shrink-0 text-[#E16349]" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" />
+                  <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <p className="text-xs font-semibold text-zinc-700">
+                  {tipoEntrega === 'RETIRADA'
+                    ? 'Já pode retirar na loja.'
+                    : pedido.tempo_deslocamento_min != null
+                      ? `Sai para entrega a qualquer momento — cerca de ${pedido.tempo_deslocamento_min} min de trajeto até você.`
+                      : 'Sai para entrega a qualquer momento.'}
+                </p>
+              </div>
+            ) : null}
           </div>
         </section>
 
@@ -181,6 +278,11 @@ export function PainelAcompanhamentoPedido({ pedidoInicial, pagamento }: PainelA
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-zinc-900">{item.nome}</p>
                   <p className="mt-1 text-xs text-zinc-500">{item.quantidade}x • {formatarMoeda(item.preco_unitario)}</p>
+                  {item.adicionais.length > 0 ? (
+                    <p className="mt-1 text-[11px] text-zinc-400">
+                      + {item.adicionais.map((adicional) => adicional.nome).join(', ')}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="text-right text-sm font-semibold text-zinc-900">
                   {formatarMoeda(item.preco_unitario * item.quantidade)}
@@ -196,6 +298,15 @@ export function PainelAcompanhamentoPedido({ pedidoInicial, pagamento }: PainelA
 
         <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-zinc-900">Entrega e contato</h3>
+          {emFaseEntrega ? (
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-900">Código de confirmação</p>
+              <p className="mt-1 text-2xl font-extrabold tracking-widest text-amber-900">
+                {pedido.codigo_confirmacao_entrega}
+              </p>
+              <p className="mt-1 text-xs text-amber-800">Informe este código ao entregador na hora da entrega.</p>
+            </div>
+          ) : null}
           <div className="mt-4 space-y-2 text-sm text-zinc-600">
             <p><span className="font-semibold text-zinc-900">Cliente:</span> {pedido.dados_cliente.nome}</p>
             <p><span className="font-semibold text-zinc-900">WhatsApp:</span> {pedido.dados_cliente.telefone}</p>

@@ -6,6 +6,8 @@ import {
   buscarPedidoPorExternalReference,
   criarPedidoPendente,
 } from '@/utils/pedidos-acompanhamento';
+import { calcularRotaEntrega, geocodificarEndereco, montarEnderecoParaGeocodificacao } from '@/utils/google-maps';
+import { calcularTempoPreparoEstimado } from '@/utils/estimativa-chegada';
 import type { DadosClientePedido } from '@/utils/pedido-status';
 
 const MP_API_BASE = 'https://api.mercadopago.com';
@@ -15,6 +17,7 @@ type NivelLogWebhook = 'info' | 'sucesso' | 'alerta' | 'erro';
 interface ItemMetadado {
   item_cardapio_id: string;
   quantidade: number;
+  complementoIds?: string[];
 }
 
 interface MetadataPedido {
@@ -35,6 +38,14 @@ interface ItemCardapioPrecificado {
   id: string;
   nome: string;
   preco_venda: number;
+}
+
+interface ComplementoPrecificado {
+  id: string;
+  item_cardapio_id: string;
+  nome: string;
+  preco_adicional: number;
+  disponivel: boolean;
 }
 
 interface ParamsRegistrarLogWebhook {
@@ -101,7 +112,9 @@ function validarItens(itens: ItemMetadado[]) {
       typeof item.item_cardapio_id === 'string' &&
       item.item_cardapio_id.length > 0 &&
       Number.isInteger(item.quantidade) &&
-      item.quantidade > 0
+      item.quantidade > 0 &&
+      (item.complementoIds === undefined ||
+        (Array.isArray(item.complementoIds) && item.complementoIds.every((id) => typeof id === 'string')))
   );
 }
 
@@ -444,7 +457,9 @@ export async function POST(request: Request) {
     etapaAtual = 'busca_restaurante_por_slug';
     const { data: restaurante, error: errRestaurante } = await supabase
       .from('restaurantes')
-      .select('id, nome, slug')
+      .select(
+        'id, nome, slug, endereco, latitude, longitude, tempo_preparo_base_minutos, tempo_preparo_incremento_minutos, tempo_preparo_teto_minutos'
+      )
       .eq('slug', slug)
       .maybeSingle();
 
@@ -486,10 +501,124 @@ export async function POST(request: Request) {
     }
 
     const produtos = produtosBanco as ItemCardapioPrecificado[];
-    const valorTotal = itens.reduce((acc, item) => {
-      const produto = produtos.find((prod) => prod.id === item.item_cardapio_id);
-      return acc + (produto ? Number(produto.preco_venda) * item.quantidade : 0);
-    }, 0);
+    const produtoPorId = new Map(produtos.map((item) => [item.id, item]));
+
+    etapaAtual = 'busca_complementos_itens';
+    const idsComplementos = Array.from(new Set(itens.flatMap((item) => item.complementoIds ?? [])));
+    let complementosBanco: ComplementoPrecificado[] = [];
+    if (idsComplementos.length > 0) {
+      const { data: complementosData, error: errComplementos } = await supabase
+        .from('complementos_produto')
+        .select('id, item_cardapio_id, nome, preco_adicional, disponivel')
+        .in('id', idsComplementos);
+
+      if (errComplementos) {
+        await registrarLogWebhook({
+          supabase,
+          idCorrelacao,
+          etapa: etapaAtual,
+          nivel: 'erro',
+          mensagem: 'Falha na recuperação de adicionais para conciliação do pedido.',
+          restauranteId: restaurante.id,
+          paymentId,
+          erro: errComplementos,
+        });
+        return NextResponse.json({ error: 'Falha ao recuperar adicionais vigentes.' }, { status: 400 });
+      }
+      complementosBanco = (complementosData ?? []) as ComplementoPrecificado[];
+    }
+    const complementoPorId = new Map(complementosBanco.map((c) => [c.id, c]));
+
+    const itensPrecificados = itens.map((item) => {
+      const produto = produtoPorId.get(item.item_cardapio_id);
+      const precoBase = produto ? Number(produto.preco_venda) : 0;
+
+      const adicionaisValidos = (item.complementoIds ?? [])
+        .map((id) => complementoPorId.get(id))
+        .filter(
+          (complemento): complemento is ComplementoPrecificado =>
+            !!complemento &&
+            complemento.item_cardapio_id === item.item_cardapio_id &&
+            complemento.disponivel === true
+        )
+        .map((complemento) => ({
+          id: complemento.id,
+          nome: complemento.nome,
+          preco_adicional: Number(complemento.preco_adicional),
+        }));
+
+      const precoAdicionais = adicionaisValidos.reduce((acc, adicional) => acc + adicional.preco_adicional, 0);
+
+      return {
+        item_cardapio_id: item.item_cardapio_id,
+        quantidade: item.quantidade,
+        precoUnitario: precoBase + precoAdicionais,
+        adicionais: adicionaisValidos,
+      };
+    });
+
+    const valorTotal = itensPrecificados.reduce((acc, item) => acc + item.precoUnitario * item.quantidade, 0);
+
+    etapaAtual = 'geolocalizacao_distancia_fallback';
+    let clienteLatitude: number | null = null;
+    let clienteLongitude: number | null = null;
+    let distanciaEntregaKm: number | null = null;
+    let tempoDeslocamentoMin: number | null = null;
+
+    if (dadosCliente.tipoEntrega !== 'RETIRADA') {
+      try {
+        let origemLoja =
+          typeof restaurante.latitude === 'number' && typeof restaurante.longitude === 'number'
+            ? { latitude: restaurante.latitude, longitude: restaurante.longitude }
+            : null;
+
+        if (!origemLoja && restaurante.endereco) {
+          origemLoja = await geocodificarEndereco(restaurante.endereco);
+          if (origemLoja) {
+            await supabase
+              .from('restaurantes')
+              .update({ latitude: origemLoja.latitude, longitude: origemLoja.longitude })
+              .eq('id', restaurante.id);
+          }
+        }
+
+        const enderecoClienteTexto = dadosCliente.endereco
+          ? montarEnderecoParaGeocodificacao(dadosCliente.endereco)
+          : '';
+        const destinoCliente = enderecoClienteTexto ? await geocodificarEndereco(enderecoClienteTexto) : null;
+
+        if (destinoCliente) {
+          clienteLatitude = destinoCliente.latitude;
+          clienteLongitude = destinoCliente.longitude;
+        }
+
+        if (origemLoja && destinoCliente) {
+          const rota = await calcularRotaEntrega(origemLoja, destinoCliente);
+          if (rota) {
+            distanciaEntregaKm = rota.distanciaKm;
+            tempoDeslocamentoMin = rota.duracaoMinutos;
+          }
+        }
+      } catch (error) {
+        console.error('Falha ao calcular geolocalização/distância no fallback do webhook (seguindo sem estimativa):', error);
+      }
+    }
+
+    etapaAtual = 'tempo_preparo_fallback';
+    const { count: pedidosNaFila } = await supabase
+      .from('pedidos')
+      .select('id', { count: 'exact', head: true })
+      .eq('restaurante_id', restaurante.id)
+      .in('status', ['PENDENTE', 'PAGO', 'PREPARANDO']);
+
+    const tempoPreparoEstimadoMin = calcularTempoPreparoEstimado(
+      {
+        baseMinutos: restaurante.tempo_preparo_base_minutos ?? 20,
+        incrementoPorPedidoMinutos: restaurante.tempo_preparo_incremento_minutos ?? 3,
+        tetoMinutos: restaurante.tempo_preparo_teto_minutos ?? 60,
+      },
+      pedidosNaFila ?? 0
+    );
 
     etapaAtual = 'criacao_pedido_fallback';
     const externalReference = pagamento.external_reference || metadata.externalReference || `legacy-${restaurante.id}-${randomUUID()}`;
@@ -505,10 +634,16 @@ export async function POST(request: Request) {
       dadosCliente,
       valorTotal,
       externalReference,
-      itens: itens.map((item) => ({
+      clienteLatitude,
+      clienteLongitude,
+      distanciaEntregaKm,
+      tempoDeslocamentoMin,
+      tempoPreparoEstimadoMin,
+      itens: itensPrecificados.map((item) => ({
         item_cardapio_id: item.item_cardapio_id,
         quantidade: item.quantidade,
-        preco_unitario: Number(produtos.find((prod) => prod.id === item.item_cardapio_id)?.preco_venda ?? 0),
+        preco_unitario: item.precoUnitario,
+        adicionais: item.adicionais,
       })),
     });
 

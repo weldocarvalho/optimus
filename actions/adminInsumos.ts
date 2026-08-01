@@ -126,21 +126,23 @@ export async function excluirInsumosEmLote(ids: string[]) {
 }
 
 export async function atualizarCustoInsumoAdmin(
-  id: string, 
-  novoCusto: number, 
-  estoqueAtual: number, 
+  id: string,
+  nome: string,
+  novoCusto: number,
+  estoqueAtual: number,
   estoqueMinimo: number
 ) {
-  if (!id || novoCusto <= 0) {
+  if (!id || !nome.trim() || novoCusto <= 0) {
     return { success: false, error: 'Dados inválidos para atualização.' };
   }
 
   try {
     const supabase = await createClient();
-    
+
     const { error } = await supabase
       .from('insumos')
       .update({
+        nome: nome.trim(),
         custo_unitario: novoCusto,
         estoque_atual: estoqueAtual,
         estoque_minimo: estoqueMinimo

@@ -7,30 +7,24 @@ import { useParams } from 'next/navigation';
 import { useCarrinho } from './ContextoCarrinho';
 
 interface BarraProps {
-  ehAcai?: boolean;
+  // Cor de destaque do template (bg do botão "Ver Sacola"). Cada template
+  // padrão por tipo de loja passa a sua própria cor — o default é a
+  // vermelha histórica da Hamburgueria.
+  corBotaoAcao?: string;
+  corBadgeFundo?: string;
+  corBadgeTexto?: string;
 }
 
-export default function BarraCarrinhoFlutuante({ ehAcai = false }: BarraProps) {
+export default function BarraCarrinhoFlutuante({
+  corBotaoAcao = '#E52521',
+  corBadgeFundo = '#F4F4F5',
+  corBadgeTexto = '#27272A',
+}: BarraProps) {
   const params = useParams();
   const slug = (params?.slug as string) || '';
   const { totalItens, valorTotal } = useCarrinho();
 
   if (totalItens === 0) return null;
-
-  const corFundoSacola = ehAcai
-    ? 'bg-[#3B0D2C]/95 border-[#7D1A52]/30 shadow-[#3B0D2C]/20'
-    : 'bg-white/80 border-zinc-200/60 shadow-zinc-300/40 backdrop-blur-xl';
-
-  const corBotaoQuantidade = ehAcai
-    ? 'bg-[#2C0A21] text-purple-200 border border-[#7D1A52]/20'
-    : 'bg-zinc-100 text-zinc-800 border border-zinc-200 font-mono font-extrabold';
-
-  const corBotaoAcao = ehAcai
-    ? 'bg-[#7D1A52] hover:bg-[#631440] text-white'
-    : 'bg-[#E52521] hover:bg-[#c91d1a] text-white shadow-[0_4px_14px_rgba(229,37,33,0.3)]';
-
-  const corTextoSubtotal = ehAcai ? 'text-white' : 'text-zinc-900';
-  const corTextoLabel = 'text-zinc-400';
 
   const formatarMoeda = (valor: number) => {
     return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -38,14 +32,17 @@ export default function BarraCarrinhoFlutuante({ ehAcai = false }: BarraProps) {
 
   return (
     <div className="fixed bottom-0 inset-x-0 p-4 bg-transparent z-40 animate-in slide-in-from-bottom duration-300 select-none">
-      <div className={`max-w-md mx-auto rounded-[24px] p-4 flex items-center justify-between shadow-xl border ${corFundoSacola}`}>
+      <div className="max-w-md mx-auto rounded-[24px] p-4 flex items-center justify-between shadow-xl border bg-white/80 border-zinc-200/60 shadow-zinc-300/40 backdrop-blur-xl">
         <div className="flex items-center gap-3.5">
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-extrabold text-xs shadow-sm transition-colors ${corBotaoQuantidade}`}>
+          <div
+            className="w-8 h-8 rounded-xl flex items-center justify-center font-extrabold text-xs shadow-sm transition-colors font-mono"
+            style={{ backgroundColor: corBadgeFundo, color: corBadgeTexto }}
+          >
             {totalItens}
           </div>
           <div>
-            <span className={`text-[9px] block font-bold uppercase tracking-widest ${corTextoLabel}`}>Subtotal</span>
-            <span className={`font-extrabold text-sm font-mono tracking-tight ${corTextoSubtotal}`}>
+            <span className="text-[9px] block font-bold uppercase tracking-widest text-zinc-400">Subtotal</span>
+            <span className="font-extrabold text-sm font-mono tracking-tight text-zinc-900">
               {formatarMoeda(valorTotal)}
             </span>
           </div>
@@ -53,7 +50,8 @@ export default function BarraCarrinhoFlutuante({ ehAcai = false }: BarraProps) {
 
         <Link
           href={`/${slug}/checkout`}
-          className={`font-extrabold text-xs px-5 py-3 rounded-[16px] active:scale-[0.98] transition-all flex items-center gap-1.5 shadow-md uppercase tracking-wider ${corBotaoAcao}`}
+          className="font-extrabold text-xs px-5 py-3 rounded-[16px] active:scale-[0.98] transition-all hover:brightness-90 flex items-center gap-1.5 shadow-md uppercase tracking-wider text-white"
+          style={{ backgroundColor: corBotaoAcao }}
         >
           Ver Sacola
           <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">

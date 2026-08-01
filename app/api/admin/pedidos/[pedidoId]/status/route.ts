@@ -3,7 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import { atualizarStatusPedidoComNotificacoes } from '@/utils/pedidos-acompanhamento';
 import type { StatusPedido } from '@/utils/pedido-status';
 
-const STATUS_VALIDOS: StatusPedido[] = ['PENDENTE', 'PAGO', 'PREPARANDO', 'PRONTO', 'ENTREGUE'];
+const STATUS_VALIDOS: StatusPedido[] = ['PENDENTE', 'PAGO', 'PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA', 'ENTREGUE'];
 
 interface Params {
   params: Promise<{ pedidoId: string }>;

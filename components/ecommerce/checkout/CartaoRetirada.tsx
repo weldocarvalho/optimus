@@ -2,10 +2,17 @@
 
 interface CartaoRetiradaProps {
   endereco: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
-export default function CartaoRetirada({ endereco }: CartaoRetiradaProps) {
-  const urlMapas = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(endereco)}`;
+export default function CartaoRetirada({ endereco, latitude, longitude }: CartaoRetiradaProps) {
+  // Com coordenada exata da loja, abre rota de verdade (turn-by-turn); sem
+  // ela, cai no fallback de busca por texto do endereço.
+  const urlMapas =
+    typeof latitude === 'number' && typeof longitude === 'number'
+      ? `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(endereco)}`;
 
   return (
     <div className="bg-[#F8F8F8] border border-zinc-100 rounded-[18px] p-4 space-y-3">

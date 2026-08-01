@@ -1,8 +1,9 @@
 // app/[slug]/page.tsx
 import { notFound } from 'next/navigation';
 import { obterCardapioPorSlug } from '@/actions/cardapio';
-import ComponenteLojaHamburguer from '@/components/ecommerce/ComponenteLojaHamburguer';
-
+import { renderizarLojaPublica } from '@/components/ecommerce/temas/SeletorLojaPublica';
+import { LojaFechadaAviso } from '@/components/ecommerce/LojaFechadaAviso';
+import { estaLojaAberta, type HorarioFuncionamentoDia } from '@/utils/horario-funcionamento';
 
 interface PaginaCardapioProps {
   params: Promise<{
@@ -17,6 +18,7 @@ interface ComplementoProdutoPagina {
   preco_adicional: number | string;
   disponivel: boolean;
   created_at: string;
+  grupo: string | null;
 }
 
 interface ProdutoPagina {
@@ -45,6 +47,17 @@ export default async function PaginaCardapioPublico({ params }: PaginaCardapioPr
     notFound();
   }
 
+  const horariosFuncionamento = (restaurante as { horarios_funcionamento?: HorarioFuncionamentoDia[] | null })
+    .horarios_funcionamento;
+
+  if (!estaLojaAberta(horariosFuncionamento)) {
+    return (
+      <main className="min-h-screen bg-[#FDFDFD]">
+        <LojaFechadaAviso nomeRestaurante={restaurante.nome} horarios={horariosFuncionamento ?? []} />
+      </main>
+    );
+  }
+
   // Normaliza os dados tipados para a renderização limpa do componente de vitrine
   const produtosNormalizados = (produtos as ProdutoPagina[]).map((p) => ({
     id: p.id,
@@ -62,19 +75,25 @@ export default async function PaginaCardapioPublico({ params }: PaginaCardapioPr
       preco_adicional: Number(c.preco_adicional),
       disponivel: c.disponivel,
       created_at: c.created_at,
+      grupo: c.grupo ?? null,
     })).filter((c) => c.disponivel),
   }));
 
+  // Escolhe e renderiza o visual da vitrine: loja customizada (por slug) >
+  // template do tipo de negócio > fallback genérico. Os dados acima são
+  // sempre os mesmos, isolados por restaurante — só a apresentação muda.
   return (
     <main className="min-h-screen bg-[#FDFDFD]">
-      <ComponenteLojaHamburguer 
-        restaurante={{
+      {renderizarLojaPublica({
+        slug,
+        tipo: restaurante.tipo,
+        restaurante: {
           id: restaurante.id,
           nome: restaurante.nome,
           endereco: restaurante.endereco ?? null,
-        }} 
-        produtos={produtosNormalizados} 
-      />
+        },
+        produtos: produtosNormalizados,
+      })}
     </main>
   );
 }
